@@ -1,10 +1,9 @@
-import { isValidObjectId } from "mongoose";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthorized, unauthorized } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { serializeJob } from "@/lib/jobs-query";
-import { Job, JOB_STATUSES } from "@/lib/models";
+import { prisma } from "@/lib/db";
+import { isJobId, serializeJob } from "@/lib/jobs-query";
+import { JOB_STATUSES } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +22,8 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  if (!isValidObjectId(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  await connectDB();
-  const job = await Job.findOne({ _id: id, status: "approved" }).select("-fingerprint -__v").lean();
+  if (!isJobId(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const job = await prisma.job.findFirst({ where: { id, status: "approved" }, omit: { fingerprint: true }, include: { sources: true } });
   if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ job: serializeJob(job) });
 }
@@ -34,15 +32,18 @@ export async function GET(_req: Request, { params }: Ctx) {
 export async function PATCH(req: Request, { params }: Ctx) {
   if (!isAuthorized(req)) return unauthorized();
   const { id } = await params;
-  if (!isValidObjectId(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!isJobId(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const body = Patch.safeParse(await req.json().catch(() => ({})));
   if (!body.success) return NextResponse.json({ error: body.error.message }, { status: 400 });
 
-  await connectDB();
-  const job = await Job.findById(id);
-  if (!job) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (body.data.status === "approved" && job.status !== "approved") job.publishedAt = new Date();
-  job.set(body.data);
-  await job.save();
-  return NextResponse.json({ job: serializeJob(job.toObject()) });
+  const current = await prisma.job.findUnique({ where: { id }, select: { status: true } });
+  if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const publishNow = body.data.status === "approved" && current.status !== "approved";
+  const job = await prisma.job.update({
+    where: { id },
+    data: { ...body.data, ...(publishNow && { publishedAt: new Date() }) },
+    omit: { fingerprint: true },
+    include: { sources: true },
+  });
+  return NextResponse.json({ job: serializeJob(job) });
 }

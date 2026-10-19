@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
 import { filtersFromParams, trackCounts } from "@/lib/jobs-query";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +7,5 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const filters = filtersFromParams(new URL(req.url).searchParams);
   delete filters.status; // public: approved only
-  await connectDB();
   return NextResponse.json({ counts: await trackCounts(filters) });
 }

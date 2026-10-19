@@ -1,4 +1,6 @@
-import { Job, RawItem, type JobStatus, type SourceKey } from "@/lib/models";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import type { JobStatus, SourceKey } from "@/lib/models";
 import { adapters, type NormalizedJob } from "@/lib/sources";
 import { isTodayInDhaka } from "@/lib/time";
 import { fingerprint } from "./fingerprint";
@@ -35,11 +37,11 @@ async function processOne(
   // Portal shows only jobs posted today (Dhaka time). Undated posts count as new.
   if (opts.todayOnly && job.postedAt && !isTodayInDhaka(job.postedAt)) return "stale";
 
-  if (opts.storeRaw) await RawItem.create({ source, externalId: job.externalId, runId, payload: raw });
+  if (opts.storeRaw) await prisma.rawItem.create({ data: { source, externalId: job.externalId, runId, payload: raw as Prisma.InputJsonValue } });
 
   // Same source + id already stored → nothing new (overlapping check windows).
   if (job.externalId) {
-    const seen = await Job.exists({ "sources.source": source, "sources.externalId": job.externalId });
+    const seen = await prisma.jobSource.findUnique({ where: { source_externalId: { source, externalId: job.externalId } }, select: { id: true } });
     if (seen) return "merged";
   }
 
@@ -81,40 +83,41 @@ async function processOne(
   const fp = fingerprint(fields);
 
   // Cross-platform duplicate → attach this source to the existing job.
-  const existing = await Job.findOne({ fingerprint: fp });
+  const existing = await prisma.job.findUnique({ where: { fingerprint: fp }, include: { sources: true } });
   if (existing) {
-    if (!existing.sources.some((s) => s.source === source && s.url === link.url)) {
-      existing.sources.push(link);
-      await existing.save();
+    if (!existing.sources.some((s) => s.source === source && s.url === (link.url ?? null))) {
+      await prisma.jobSource.create({ data: { ...link, jobId: existing.id } });
     }
     return "merged";
   }
 
   const description = job.unstructured ? redact(fields.description) : fields.description;
-  await Job.create({
-    fingerprint: fp,
-    title: fields.title,
-    company: fields.company,
-    location: fields.location,
-    isRemote: Boolean(fields.isRemote),
-    jobType: fields.jobType,
-    level: fields.level,
-    experience: job.experience,
-    salary: fields.salary,
-    description,
-    summary: summary ?? description?.slice(0, 280),
-    skills: fields.skills,
-    applyUrl: fields.applyUrl ?? job.sourceUrl,
-    sources: [link],
-    postedAt: job.postedAt ?? new Date(),
-    deadline: fields.deadline && !Number.isNaN(fields.deadline.getTime()) ? fields.deadline : undefined,
-    relevance: verdict.score,
-    category: verdict.category,
-    tracks: verdict.tracks,
-    classifiedBy: byLLM ? "llm" : "rules",
-    reason: verdict.reason,
-    status,
-    publishedAt: status === "approved" ? new Date() : undefined,
+  await prisma.job.create({
+    data: {
+      fingerprint: fp,
+      title: fields.title,
+      company: fields.company,
+      location: fields.location,
+      isRemote: Boolean(fields.isRemote),
+      jobType: fields.jobType,
+      level: fields.level,
+      experience: job.experience,
+      salary: fields.salary,
+      description,
+      summary: summary ?? description?.slice(0, 280),
+      skills: fields.skills,
+      applyUrl: fields.applyUrl ?? job.sourceUrl,
+      sources: { create: [link] },
+      postedAt: job.postedAt ?? new Date(),
+      deadline: fields.deadline && !Number.isNaN(fields.deadline.getTime()) ? fields.deadline : undefined,
+      relevance: verdict.score,
+      category: verdict.category,
+      tracks: verdict.tracks,
+      classifiedBy: byLLM ? "llm" : "rules",
+      reason: verdict.reason,
+      status,
+      publishedAt: status === "approved" ? new Date() : undefined,
+    },
   });
   return status === "approved" ? "created" : status === "pending" ? "queued" : "rejected";
 }
@@ -131,7 +134,7 @@ export async function processItems(
       stats[await processOne(source, raw, runId, { storeRaw, todayOnly })]++;
     } catch (error) {
       // A duplicate-key race between overlapping checks is just a merge.
-      if ((error as { code?: number }).code === 11000) stats.merged++;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") stats.merged++;
       else {
         stats.skipped++;
         console.error(`[process] ${source} item failed`, error);
@@ -141,15 +144,19 @@ export async function processItems(
   return stats;
 }
 
-/** Hide jobs past their deadline, or older than `days` (the portal is about fresh jobs). */
+/**
+ * Hide jobs past their deadline, or older than `days` (the portal is about fresh jobs), and
+ * drop raw items older than 14 days.
+ */
 export async function expireJobs(days = 7): Promise<number> {
   const now = new Date();
-  const res = await Job.updateMany(
-    {
-      status: { $in: ["approved", "pending"] },
-      $or: [{ deadline: { $lt: now } }, { postedAt: { $lt: new Date(now.getTime() - days * 864e5) } }],
+  const res = await prisma.job.updateMany({
+    where: {
+      status: { in: ["approved", "pending"] },
+      OR: [{ deadline: { lt: now } }, { postedAt: { lt: new Date(now.getTime() - days * 864e5) } }],
     },
-    { $set: { status: "expired" } },
-  );
-  return res.modifiedCount;
+    data: { status: "expired" },
+  });
+  await prisma.rawItem.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 14 * 864e5) } } });
+  return res.count;
 }

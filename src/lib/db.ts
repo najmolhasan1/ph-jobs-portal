@@ -1,15 +1,8 @@
-import mongoose from "mongoose";
+import { PrismaClient } from "@prisma/client";
 
-const globalForMongoose = globalThis as unknown as {
-  mongooseConn?: Promise<typeof mongoose>;
-};
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export function connectDB(): Promise<typeof mongoose> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("MONGODB_URI is not set (see .env.example)");
-  // Reuse one connection across hot reloads and route invocations.
-  globalForMongoose.mongooseConn ??= mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 10_000,
-  });
-  return globalForMongoose.mongooseConn;
-}
+// One client across hot reloads and route invocations. It connects lazily on the first query
+// and reconnects by itself, so the site recovers if the database starts after it.
+export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

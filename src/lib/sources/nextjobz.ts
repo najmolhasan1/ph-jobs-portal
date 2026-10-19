@@ -1,5 +1,4 @@
-import { connectDB } from "@/lib/db";
-import { Job } from "@/lib/models";
+import { prisma } from "@/lib/db";
 import { fetchText, jsonLd, sleep } from "./http";
 import { pickStr, stripHtml } from "./pick";
 import type { RawItem, SourceAdapter } from "./types";
@@ -21,11 +20,10 @@ export const nextjobz: SourceAdapter = {
       .map((e) => String(e.url ?? ""))
       .filter((u) => /\/jobs\/.+-IJOB\d+$/.test(u));
 
-    await connectDB();
     const ids = urls.map((u) => u.match(/(IJOB\d+)$/)![1]);
     const known = new Set(
-      (await Job.find({ "sources.source": "nextjobz", "sources.externalId": { $in: ids } }, { "sources.$": 1 }).lean()).flatMap(
-        (j) => j.sources.map((s) => s.externalId),
+      (await prisma.jobSource.findMany({ where: { source: "nextjobz", externalId: { in: ids } }, select: { externalId: true } })).map(
+        (s) => s.externalId,
       ),
     );
     const fresh = urls.filter((u) => !known.has(u.match(/(IJOB\d+)$/)![1])).slice(0, Number(config.maxNewPerCheck) || 30);

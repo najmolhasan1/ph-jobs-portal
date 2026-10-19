@@ -3,8 +3,7 @@
 //   npm run replay -- <source> ./items.json       (array of raw items)
 import { readFileSync } from "node:fs";
 import { ApifyClient } from "apify-client";
-import mongoose from "mongoose";
-import { connectDB } from "../src/lib/db";
+import { prisma } from "../src/lib/db";
 import { SOURCE_KEYS, type SourceKey } from "../src/lib/models";
 import { processItems } from "../src/lib/pipeline/process";
 import { adapters } from "../src/lib/sources";
@@ -24,6 +23,5 @@ for (const raw of items) {
   console.log(n ? `• ${n.title} | ${n.company ?? "-"} | ${n.location ?? "-"} | ${n.postedAt?.toISOString().slice(0, 10) ?? "-"}` : "• (skipped — no title)");
 }
 
-await connectDB();
 console.log(await processItems(source, items, `replay:${from}`));
-await mongoose.disconnect();
+await prisma.$disconnect();

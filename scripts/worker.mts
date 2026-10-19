@@ -2,7 +2,7 @@
 // platform's interval (BDJobs every 3 min, LinkedIn every 10 min, …) and publishing matches.
 //   npm run worker
 // In production run it as a long-lived process (PM2, Railway/Render worker, systemd).
-import mongoose from "mongoose";
+import { prisma } from "../src/lib/db";
 import { runWorkers } from "../src/lib/pipeline/runner";
 
 const controller = new AbortController();
@@ -15,4 +15,4 @@ process.on("SIGTERM", stop);
 
 console.log("PH Jobs worker started — checking each enabled platform continuously. Ctrl+C to stop.");
 await runWorkers(controller.signal);
-await mongoose.disconnect();
+await prisma.$disconnect();

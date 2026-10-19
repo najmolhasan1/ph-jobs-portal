@@ -1,24 +1,23 @@
-import { isValidObjectId } from "mongoose";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, BriefcaseIcon, CalendarIcon, CashIcon, ClockIcon, GlobeIcon, PinIcon } from "@/components/icons";
 import { CompanyAvatar } from "@/components/JobCard";
-import { connectDB } from "@/lib/db";
+import { prisma } from "@/lib/db";
 import { experienceLabel, formatDate, jobTypeLabel, levelLabel, SOURCE_LABELS, timeAgo } from "@/lib/format";
-import { serializeJob, type JobDTO } from "@/lib/jobs-query";
-import { Job } from "@/lib/models";
+import { isJobId, serializeJob, type JobDTO } from "@/lib/jobs-query";
 import { TRACK_META, type TrackKey } from "@/lib/tracks";
 
 export const dynamic = "force-dynamic";
 
 async function getJob(id: string): Promise<JobDTO | null> {
-  if (!isValidObjectId(id)) return null;
-  await connectDB();
-  const job = await Job.findOne({ _id: id, status: { $in: ["approved", "expired"] } })
-    .select("-fingerprint -__v")
-    .lean();
-  return job ? (serializeJob(job) as JobDTO) : null;
+  if (!isJobId(id)) return null;
+  const job = await prisma.job.findFirst({
+    where: { id, status: { in: ["approved", "expired"] } },
+    omit: { fingerprint: true },
+    include: { sources: true },
+  });
+  return job ? serializeJob(job) : null;
 }
 
 type Props = { params: Promise<{ id: string }> };

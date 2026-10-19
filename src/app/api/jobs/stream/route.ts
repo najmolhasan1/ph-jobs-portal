@@ -1,6 +1,5 @@
-import { connectDB } from "@/lib/db";
-import { buildQuery, filtersFromParams, serializeJob } from "@/lib/jobs-query";
-import { Job } from "@/lib/models";
+import { prisma } from "@/lib/db";
+import { buildWhere, filtersFromParams, LIST_SELECT, serializeJob } from "@/lib/jobs-query";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,7 +16,6 @@ export async function GET(req: Request) {
   let since = new Date(sp.get("since") ?? Date.now());
   if (Number.isNaN(since.getTime())) since = new Date();
 
-  await connectDB();
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -29,13 +27,14 @@ export async function GET(req: Request) {
 
       const poll = async () => {
         try {
-          const jobs = await Job.find({ ...buildQuery(filters), publishedAt: { $gt: since } })
-            .sort({ publishedAt: 1 })
-            .limit(50)
-            .select("-description -fingerprint -__v")
-            .lean();
+          const jobs = await prisma.job.findMany({
+            where: { AND: [buildWhere(filters), { publishedAt: { gt: since } }] },
+            orderBy: { publishedAt: "asc" },
+            take: 50,
+            ...LIST_SELECT,
+          });
           if (jobs.length) {
-            since = jobs[jobs.length - 1].publishedAt as Date;
+            since = jobs[jobs.length - 1].publishedAt!;
             send("jobs", jobs.map(serializeJob));
           } else {
             controller.enqueue(encoder.encode(": ping\n\n")); // keep proxies from closing the connection

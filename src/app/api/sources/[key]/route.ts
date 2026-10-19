@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isAuthorized, unauthorized } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Source, SOURCE_KEYS } from "@/lib/models";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { SOURCE_KEYS } from "@/lib/models";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +20,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ key: s
   const body = Patch.safeParse(await req.json().catch(() => ({})));
   if (!body.success) return NextResponse.json({ error: body.error.message }, { status: 400 });
 
-  await connectDB();
   // Changing the interval reschedules the next check right away.
-  const set: Record<string, unknown> = { ...body.data };
-  if (body.data.intervalMinutes || body.data.enabled) set.nextCheckAt = new Date();
-  const source = await Source.findOneAndUpdate({ key }, { $set: set }, { new: true }).lean();
+  const { config, ...rest } = body.data;
+  const source = await prisma.source.update({
+    where: { key },
+    data: {
+      ...rest,
+      ...(config && { config: config as Prisma.InputJsonValue }),
+      ...((rest.intervalMinutes || rest.enabled) && { nextCheckAt: new Date() }),
+    },
+  });
   return NextResponse.json({ source: JSON.parse(JSON.stringify(source)) });
 }

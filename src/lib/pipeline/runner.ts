@@ -1,6 +1,6 @@
-import mongoose from "mongoose";
-import { connectDB } from "@/lib/db";
-import { Run, Source, SOURCE_KEYS, type SourceDoc, type SourceKey } from "@/lib/models";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/db";
+import { SOURCE_KEYS, type SourceKey, type SourceRow } from "@/lib/models";
 import { adapters } from "@/lib/sources";
 import { startOfTodayDhaka } from "@/lib/time";
 import { expireJobs, processItems, type ProcessStats } from "./process";
@@ -11,72 +11,72 @@ import { expireJobs, processItems, type ProcessStats } from "./process";
 
 /** Create a Source row per adapter on first boot. */
 export async function ensureSources(): Promise<void> {
-  await connectDB();
-  for (const key of SOURCE_KEYS) {
-    const a = adapters[key];
-    await Source.updateOne(
-      { key },
-      {
-        $setOnInsert: {
-          key,
-          name: a.name,
-          config: a.defaultConfig,
-          intervalMinutes: a.intervalMinutes,
-          enabled: a.enabledByDefault,
-        },
-      },
-      { upsert: true },
-    );
-  }
+  const existing = new Set((await prisma.source.findMany({ select: { key: true } })).map((s) => s.key));
+  const missing = SOURCE_KEYS.filter((key) => !existing.has(key));
+  if (!missing.length) return;
+  await prisma.source.createMany({
+    data: missing.map((key) => {
+      const a = adapters[key];
+      return {
+        key,
+        name: a.name,
+        config: a.defaultConfig as Prisma.InputJsonValue,
+        intervalMinutes: a.intervalMinutes,
+        enabled: a.enabledByDefault,
+      };
+    }),
+    skipDuplicates: true,
+  });
 }
 
 /** One check of one platform. Safe to call while another check of the same platform is running (it no-ops). */
 export async function runCheck(key: SourceKey): Promise<ProcessStats | null> {
-  await connectDB();
   // Claim the source so two workers (or a worker and "Check now") never overlap.
   const staleClaim = new Date(Date.now() - 20 * 60_000);
-  const source = await Source.findOneAndUpdate(
-    { key, $or: [{ state: { $ne: "checking" } }, { lastCheckAt: { $lt: staleClaim } }] },
-    { $set: { state: "checking", lastCheckAt: new Date() } },
-    { new: true },
-  ).lean<SourceDoc>();
-  if (!source) return null;
+  const claimed = await prisma.source.updateMany({
+    where: { key, OR: [{ state: { not: "checking" } }, { lastCheckAt: { lt: staleClaim } }] },
+    data: { state: "checking", lastCheckAt: new Date() },
+  });
+  if (!claimed.count) return null;
+  const source = (await prisma.source.findUniqueOrThrow({ where: { key } })) as SourceRow;
 
   const adapter = adapters[key];
   const startedAt = new Date();
   // First check of the day starts from midnight: the portal is about today's posts.
   const today = startOfTodayDhaka();
   const since = source.lastSuccessAt && source.lastSuccessAt > today ? source.lastSuccessAt : today;
-  const run = await Run.create({ source: key, startedAt, since });
+  const run = await prisma.run.create({ data: { source: key, startedAt, since } });
 
   try {
     const items = await adapter.fetchNew({ since, config: source.config ?? {} });
-    const stats = await processItems(key, items, String(run._id));
-    await Run.updateOne({ _id: run._id }, { $set: { status: "DONE", finishedAt: new Date(), ...stats } });
-    await Source.updateOne(
-      { key },
-      {
-        $set: {
-          state: "idle",
-          lastSuccessAt: startedAt,
-          lastError: null,
-          consecutiveFailures: 0,
-          nextCheckAt: new Date(Date.now() + (source.intervalMinutes ?? adapter.intervalMinutes) * 60_000),
-        },
+    const stats = await processItems(key, items, run.id);
+    const { fetched, created, queued, merged, rejected, stale } = stats; // Run has no "skipped" column
+    const counts = { fetched, created, queued, merged, rejected, stale };
+    await prisma.run.update({ where: { id: run.id }, data: { status: "DONE", finishedAt: new Date(), ...counts } });
+    await prisma.source.update({
+      where: { key },
+      data: {
+        state: "idle",
+        lastSuccessAt: startedAt,
+        lastError: null,
+        consecutiveFailures: 0,
+        nextCheckAt: new Date(Date.now() + (source.intervalMinutes ?? adapter.intervalMinutes) * 60_000),
       },
-    );
+    });
     return stats;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     const retryMs = /usage|billing|upgrad|limit exceeded|isn't enough/i.test(message) ? 30 * 60_000 : 60_000;
-    await Run.updateOne({ _id: run._id }, { $set: { status: "FAILED", finishedAt: new Date(), error: message } });
-    await Source.updateOne(
-      { key },
-      {
-        $set: { state: "error", lastError: message, nextCheckAt: new Date(Date.now() + retryMs) },
-        $inc: { consecutiveFailures: 1 },
+    await prisma.run.update({ where: { id: run.id }, data: { status: "FAILED", finishedAt: new Date(), error: message } });
+    await prisma.source.update({
+      where: { key },
+      data: {
+        state: "error",
+        lastError: message,
+        nextCheckAt: new Date(Date.now() + retryMs),
+        consecutiveFailures: { increment: 1 },
       },
-    );
+    });
     throw e;
   }
 }
@@ -97,31 +97,35 @@ const LOCK_STALE_MS = 90_000;
  * can take over after ~90 s.
  */
 async function acquireWorkerLock(owner: string): Promise<boolean> {
-  const locks = mongoose.connection.db!.collection<{ _id: string; owner: string; pid: number; heartbeatAt: Date }>("locks");
+  const now = new Date();
+  const data = { owner, pid: process.pid, heartbeatAt: now };
+  // Take over the lock if it's ours or its holder stopped heartbeating…
+  const taken = await prisma.lock.updateMany({
+    where: { id: "worker", OR: [{ owner }, { heartbeatAt: { lt: new Date(now.getTime() - LOCK_STALE_MS) } }] },
+    data,
+  });
+  if (taken.count) return true;
+  // …or create it if nobody holds one. The primary key makes two simultaneous creates impossible.
   try {
-    await locks.findOneAndUpdate(
-      { _id: "worker", $or: [{ owner }, { heartbeatAt: { $lt: new Date(Date.now() - LOCK_STALE_MS) } }] },
-      { $set: { owner, pid: process.pid, heartbeatAt: new Date() } },
-      { upsert: true },
-    );
+    await prisma.lock.create({ data: { id: "worker", ...data } });
     return true;
   } catch (e) {
-    if ((e as { code?: number }).code === 11000) return false; // held by a live worker
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false; // held by a live worker
     throw e;
   }
 }
 
 async function releaseWorkerLock(owner: string) {
-  await mongoose.connection.db?.collection<{ _id: string; owner: string }>("locks").deleteOne({ _id: "worker", owner }).catch(() => undefined);
+  await prisma.lock.deleteMany({ where: { id: "worker", owner } }).catch(() => undefined);
 }
 
 export async function runWorkers(signal?: AbortSignal): Promise<void> {
   await ensureSources();
   const owner = `${process.pid}-${Date.now()}`;
   if (!(await acquireWorkerLock(owner))) {
-    const held = await mongoose.connection.db!.collection("locks").findOne({ _id: "worker" as never });
+    const held = await prisma.lock.findUnique({ where: { id: "worker" } });
     throw new Error(
-      `Another worker is already running (pid ${held?.pid}, last heartbeat ${held?.heartbeatAt?.toISOString?.()}). ` +
+      `Another worker is already running (pid ${held?.pid}, last heartbeat ${held?.heartbeatAt.toISOString()}). ` +
         "Stop it first — two workers would double every check and every Apify bill.",
     );
   }
@@ -146,7 +150,7 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
 
   const loop = async (key: SourceKey) => {
     while (!signal?.aborted) {
-      const s = await Source.findOne({ key }).lean<SourceDoc>();
+      const s = await prisma.source.findUnique({ where: { key } });
       const minutes = s?.intervalMinutes ?? adapters[key].intervalMinutes;
       if (!s?.enabled) {
         await sleep(30_000); // check again soon in case it gets switched on
@@ -191,10 +195,9 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
 export async function tick(): Promise<{ checked: SourceKey[]; errors: string[] }> {
   await ensureSources();
   const result = { checked: [] as SourceKey[], errors: [] as string[] };
-  const due = await Source.find({
-    enabled: true,
-    $or: [{ nextCheckAt: null }, { nextCheckAt: { $lte: new Date() } }],
-  }).lean<SourceDoc[]>();
+  const due = (await prisma.source.findMany({
+    where: { enabled: true, OR: [{ nextCheckAt: null }, { nextCheckAt: { lte: new Date() } }] },
+  })) as SourceRow[];
   await Promise.all(
     due.map(async (s) => {
       try {

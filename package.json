@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "db": "tsx scripts/dev-db.mts",
@@ -14,13 +14,19 @@
     "worker": "tsx --env-file=.env.local scripts/worker.mts",
     "check": "tsx --env-file=.env.local scripts/check.mts",
     "retag": "tsx --env-file=.env.local scripts/retag.mts",
-    "sync-config": "tsx --env-file=.env.local scripts/sync-config.mts"
+    "sync-config": "tsx --env-file=.env.local scripts/sync-config.mts",
+    "db:mongo": "tsx scripts/mongo-db.mts",
+    "db:push": "node --env-file=.env.local node_modules/prisma/build/index.js db push",
+    "migrate:mongo": "tsx --env-file=.env.local scripts/migrate-from-mongo.mts",
+    "postinstall": "prisma generate",
+    "copy-db": "tsx --env-file=.env.local scripts/copy-db.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
+    "@prisma/client": "^6.19.3",
     "apify-client": "^2.25.0",
-    "mongoose": "^8.24.5",
     "next": "^15.5.28",
+    "prisma": "^6.19.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "^4.6.7"
@@ -31,9 +37,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "embedded-postgres": "^17.10.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "^15.5.28",
     "mongodb-memory-server": "^10.4.3",
+    "mongoose": "^8.24.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

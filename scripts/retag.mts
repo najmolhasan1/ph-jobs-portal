@@ -2,13 +2,10 @@
 // Unlike `npm run rescore`, this keeps every job and moderator decision, except that live or
 // queued jobs built on a stack we don't teach (DevOps, .NET, Java, ERP…) are filtered out.
 //   npm run retag
-import mongoose from "mongoose";
-import { connectDB } from "../src/lib/db";
-import { Job } from "../src/lib/models";
+import { prisma } from "../src/lib/db";
 import { detectTracks, offStack } from "../src/lib/pipeline/rules";
 
-await connectDB();
-const jobs = await Job.find({}, { title: 1, skills: 1, description: 1, tracks: 1, status: 1, reason: 1 }).lean();
+const jobs = await prisma.job.findMany({ select: { id: true, title: true, skills: true, description: true, tracks: true, status: true, reason: true } });
 let retagged = 0;
 const hidden: string[] = [];
 const restored: string[] = [];
@@ -28,11 +25,11 @@ for (const j of jobs) {
     restored.push(j.title);
   }
   if (Object.keys(set).length) {
-    await Job.updateOne({ _id: j._id }, { $set: set });
+    await prisma.job.update({ where: { id: j.id }, data: set });
     if (set.tracks) retagged++;
   }
 }
 console.log(`Re-tagged ${retagged} of ${jobs.length} jobs; filtered out ${hidden.length}:`);
 for (const h of hidden) console.log(`  - ${h}`);
 if (restored.length) console.log(`Restored ${restored.length}: ${restored.join("; ")}`);
-await mongoose.disconnect();
+await prisma.$disconnect();

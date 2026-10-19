@@ -4,7 +4,7 @@
 |---|---|
 | Owner | Programming Hero |
 | Status | Draft v1 — 2026-10-18 |
-| Stack | Next.js (App Router, TypeScript) · MongoDB · Apify · Claude (optional) · Tailwind |
+| Stack | Next.js (App Router, TypeScript) · Postgres (Supabase, Prisma) · Apify · Claude (optional) · Tailwind |
 
 ---
 
@@ -93,7 +93,11 @@ New platform = new adapter, nothing else changes.
 - **F17** Platforms: live status per platform (Active / Checking / Error / Off), last & next check,
   published today, "Check now", settings; warning when the worker isn't running.
 
-## 6. Data model (MongoDB)
+## 6. Data model
+
+Moved from MongoDB to Postgres (Supabase) in Oct 2026 — the source of truth is
+`prisma/schema.prisma`. Platform links are their own table (`JobSource`, unique on platform +
+post id) instead of an embedded array. The original MongoDB sketch:
 
 ```
 jobs {
@@ -139,7 +143,7 @@ raw_items{ source, externalId, payload, runId, createdAt (TTL 14d) }
 
 ## 10. Build steps (goal-wise)
 
-1. **Foundation** — Next.js + Tailwind + MongoDB connection, env config, models.
+1. **Foundation** — Next.js + Tailwind + database connection, env config, models.
 2. **Ingestion** — Apify client, per-source adapters, run logging, `/api/ingest/run` + webhook.
 3. **Intelligence** — keyword classifier, optional Claude classifier/extractor, dedup/merge.
 4. **Portal** — job feed, filters, detail view, SSE live updates.

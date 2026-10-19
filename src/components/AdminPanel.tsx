@@ -21,7 +21,7 @@ type SourceRow = {
   publishedToday: number;
 };
 type RunRow = {
-  _id: string;
+  id: string;
   source: string;
   status: string;
   startedAt: string;
@@ -326,7 +326,7 @@ export function AdminPanel() {
             </thead>
             <tbody>
               {overview.runs.map((r) => (
-                <tr key={r._id} className="border-t border-line">
+                <tr key={r.id} className="border-t border-line">
                   <td className="px-3 py-2">{SOURCE_LABELS[r.source]}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted">{timeAgo(r.startedAt)}</td>
                   <td className="px-3 py-2">

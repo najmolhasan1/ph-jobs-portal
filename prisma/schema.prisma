@@ -1,0 +1,124 @@
+// Postgres (Supabase in production, `npm run db` locally).
+// After editing: `npm run db:push` (dev) or `npx prisma migrate dev` — then the client regenerates.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Supabase: the pooled connection (port 6543, ?pgbouncer=true) for the app…
+  url       = env("DATABASE_URL")
+  // …and the direct connection (port 5432) for schema changes.
+  directUrl = env("DIRECT_URL")
+}
+
+model Job {
+  id           String      @id @default(cuid())
+  fingerprint  String      @unique
+  title        String
+  company      String?
+  location     String?
+  isRemote     Boolean     @default(false)
+  jobType      String? // fulltime | parttime | contract | internship | freelance
+  level        String? // intern | junior
+  experience   String? // as the post states it, e.g. "0 to 2 years"
+  salary       String?
+  description  String?
+  summary      String?
+  skills       String[]    @default([])
+  applyUrl     String?
+  sources      JobSource[]
+  postedAt     DateTime    @default(now())
+  deadline     DateTime?
+  relevance    Float       @default(0)
+  category     String? // frontend | backend | fullstack | mobile | qa | aiml | other
+  /// Programming Hero tracks the job fits: level1 | level2 | phitron | aiml.
+  tracks       String[]    @default([])
+  classifiedBy String? // rules | llm
+  /// Why the gate approved / queued / rejected it, e.g. "senior level", "not a target role".
+  reason       String?
+  status       String      @default("pending") // approved | pending | rejected | expired
+  /// When the job became visible on the portal (auto-approve or moderator approval).
+  publishedAt  DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([status, postedAt(sort: Desc)])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([tracks], type: Gin)
+}
+
+/// Where a job was found. One job can be on several platforms (cross-posted).
+model JobSource {
+  id         Int       @id @default(autoincrement())
+  jobId      String
+  job        Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  source     String
+  url        String?
+  externalId String?
+  postedAt   DateTime?
+
+  /// Same platform + post id is the same post (overlapping check windows).
+  @@unique([source, externalId])
+  @@index([jobId])
+}
+
+model Source {
+  key                 String    @id
+  name                String
+  enabled             Boolean   @default(false)
+  config              Json      @default("{}")
+  intervalMinutes     Int       @default(10)
+  // Live worker status, shown in Admin.
+  state               String    @default("idle") // idle | checking | error
+  lastCheckAt         DateTime?
+  /// Start time of the last successful check; the next check asks for posts after this.
+  lastSuccessAt       DateTime?
+  nextCheckAt         DateTime?
+  lastError           String?
+  consecutiveFailures Int       @default(0)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model Run {
+  id         String    @id @default(cuid())
+  source     String
+  status     String    @default("RUNNING") // RUNNING | DONE | FAILED
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  since      DateTime?
+  fetched    Int       @default(0)
+  created    Int       @default(0)
+  queued     Int       @default(0)
+  merged     Int       @default(0)
+  rejected   Int       @default(0)
+  stale      Int       @default(0)
+  error      String?
+
+  @@index([startedAt(sort: Desc)])
+  @@index([source, startedAt(sort: Desc)])
+}
+
+/// Raw platform items, kept 14 days so `npm run rescore` can rebuild jobs without new scraping.
+model RawItem {
+  id         String   @id @default(cuid())
+  source     String
+  externalId String?
+  runId      String?
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  @@index([source, createdAt])
+}
+
+/// Single-worker heartbeat lock (see runWorkers).
+model Lock {
+  id          String   @id
+  owner       String
+  pid         Int
+  /// timestamptz: written by a raw query, so it must not depend on the server's time zone.
+  heartbeatAt DateTime @db.Timestamptz(3)
+}

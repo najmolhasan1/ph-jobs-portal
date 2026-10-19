@@ -7,7 +7,7 @@ Product spec: [docs/PRD.md](docs/PRD.md).
 ```
 always-on worker (npm run worker) — one loop per platform
         │
-        ▼  today only (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → MongoDB
+        ▼  today only (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → Postgres (Supabase)
 Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin ◄── live platform status
 ```
 
@@ -40,13 +40,31 @@ switch automatically when one runs out (Admin → Platforms shows each token's r
 
 ```bash
 npm install
-npm run db        # terminal 1 — local MongoDB (no install needed)
+npm run db        # terminal 1 — local Postgres (no install needed)
+npm run db:push   # once (and after schema changes) — creates the tables
 npm run dev       # terminal 2 — website at http://localhost:3000
 npm run worker    # terminal 3 — the always-on scraper (keep it running)
 ```
 
 `.env.local` needs `APIFY_TOKEN` (LinkedIn / Facebook / Indeed). BDJobs works without it.
 Admin: `/admin`, password = `ADMIN_TOKEN`. One-off check without the worker: `npm run check -- bdjobs`.
+
+## Database (Supabase)
+
+Tables are defined in `prisma/schema.prisma` (Prisma + Postgres). To use Supabase:
+
+1. Create a project at [supabase.com](https://supabase.com) (region: Singapore or Mumbai).
+2. **Connect → ORMs → Prisma** gives two URLs. In `.env.local` (and in Vercel / your host):
+   - `DATABASE_URL` = the **Transaction pooler** URL (port 6543, ends in `?pgbouncer=true`)
+   - `DIRECT_URL` = the **Session pooler** / direct URL (port 5432)
+3. `npm run db:push` creates the tables in Supabase. If the database is shared with another app,
+   add `schema=ph_jobs` to both URLs first so this project gets its own schema.
+4. Optional: copy existing data — `npm run copy-db -- <old postgres url>` (e.g. the local one) or
+   `npm run migrate:mongo` (from the old MongoDB). Both are safe to re-run.
+5. Deploy the site close to the database (Vercel region = the Supabase region): every page makes a
+   few queries, and a far-away database adds ~0.3–3 s to each.
+
+The app only talks to Postgres through Prisma, so any Postgres host works the same way.
 
 ## What gets published
 
@@ -74,7 +92,7 @@ Every filtered job keeps its reason (Admin → Review → Filtered out).
 - RemoteOK / WeWorkRemotely feeds were checked for remote jobs: both had no posts from the last
   24 h, so they don't fit a "today only" portal.
 
-Only one worker can run at a time (a heartbeat lock in the `locks` collection): a second
+Only one worker can run at a time (a heartbeat lock in the `Lock` table): a second
 `npm run worker` exits with "Another worker is already running", so checks — and Apify bills —
 are never doubled. If a worker is killed, the next one can start after ~90 seconds.
 
@@ -94,6 +112,6 @@ picks up changes on its next round.
 The worker must run continuously, so use a host with long-running processes:
 
 - **VPS**: `npm run build && pm2 start ecosystem.config.cjs && pm2 save` (website + worker).
-- **Railway / Render**: web service `npm start` + background worker `npm run worker`, MongoDB Atlas.
+- **Railway / Render**: web service `npm start` + background worker `npm run worker`, Supabase as the database.
 - **Vercel only** (no worker): `vercel.json` cron calls `/api/ingest/tick`, which runs any platform
   that's due — needs a paid plan for frequent crons, and is less "live" than the worker.
