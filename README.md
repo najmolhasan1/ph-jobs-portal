@@ -1,0 +1,99 @@
+# PH Jobs — live junior dev job portal
+
+Picks up **intern / fresher / junior web & software jobs** in **Bangladesh or remote** the moment
+they're posted on 12 platforms, and shows **today's** jobs on the portal.
+Product spec: [docs/PRD.md](docs/PRD.md).
+
+```
+always-on worker (npm run worker) — one loop per platform
+        │
+        ▼  today only (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → MongoDB
+Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin ◄── live platform status
+```
+
+| Platform | How | Every | Cost |
+|---|---|---|---|
+| BDJobs | public JSON feed (IT category + keywords) | 3 min | free |
+| atB Jobs | public JSON API | 5 min | free |
+| NextJobz | job list + each new job page (JSON-LD) | 5 min | free |
+| Himalayas | public API (says which countries a remote job is open to) | 10 min | free |
+| Remote Rocketship | page data, entry-level filter | 30 min | free |
+| Arc.dev | page data (`requiredCountries`) | 30 min | free |
+| Wellfound | page data | 30 min | free |
+| Jobright AI | search page data (sometimes bot-checked; retries) | 30 min | free |
+| LinkedIn jobs | Apify `curious_coder/linkedin-jobs-scraper`, Bangladesh | 15 min | ~$0.002/job |
+| LinkedIn company pages | Apify `harvestapi/linkedin-company-posts` (Talent Mesh Tech) | 30 min | ~$0.002/post |
+| Facebook groups (59) | Apify `memo23/facebook-public-group-posts-scraper` | 60 min | ~$0.0037/post (measured) |
+| Reddit | Apify `harshmaur/reddit-scraper`, "[Hiring]" posts | 6 h | ~$0.12/run |
+| Indeed | Apify, remote only — **off** (mostly US senior roles) | 60 min | ~$0.005/job |
+
+Not added: **LinkedIn groups** (readable only when logged in; scraping with an account risks a ban),
+**Remote OK / Remote.co** (Remote OK's free API runs about a day behind, so nothing is ever "today";
+Remote.co blocks automated requests). Facebook: 36 of the 59 groups returned posts in testing; the
+other 23 look private or inactive. Apify spend with everything on is roughly $1.5–2.5/day
+($45–75/month), mostly Facebook — the free Apify plan (~$5/month) is not enough.
+
+Several Apify tokens can be set (`APIFY_TOKENS=a,b,c`): runs use the first token with credit and
+switch automatically when one runs out (Admin → Platforms shows each token's remaining credit).
+
+## Run locally
+
+```bash
+npm install
+npm run db        # terminal 1 — local MongoDB (no install needed)
+npm run dev       # terminal 2 — website at http://localhost:3000
+npm run worker    # terminal 3 — the always-on scraper (keep it running)
+```
+
+`.env.local` needs `APIFY_TOKEN` (LinkedIn / Facebook / Indeed). BDJobs works without it.
+Admin: `/admin`, password = `ADMIN_TOKEN`. One-off check without the worker: `npm run check -- bdjobs`.
+
+## What gets published
+
+A job is **published** only if all of these hold (`src/lib/pipeline/rules.ts`):
+
+1. **Posted today** (Bangladesh time). Older posts are skipped.
+2. **Software / web dev role**: developer, programmer, software engineer, frontend, MERN, SQA, DevOps…
+   Sales, HR, civil engineering, teaching, etc. are filtered out.
+3. **Intern / junior / fresher**: from the title ("Intern", "Junior", "Trainee"), the board's level
+   label ("Entry level"), or the experience line (≤ `JUNIOR_MAX_YEARS`, default 2 years).
+   Senior / lead / manager / mid-level are filtered out.
+4. **Bangladesh, or remote**: remote only when the post itself says Remote/Worldwide/Anywhere.
+
+If the level isn't stated, the job goes to **Admin → Review** instead of the portal. With
+`ANTHROPIC_API_KEY` set, Claude reads those posts (and Facebook posts) and decides automatically.
+Every filtered job keeps its reason (Admin → Review → Filtered out).
+
+## Notes from testing (Oct 2026)
+
+- Real volume is small: on a typical day BDJobs has ~7 new IT jobs (2–3 dev roles) and LinkedIn
+  Bangladesh a handful of junior dev roles. Junior **remote-worldwide** jobs are rare everywhere.
+- LinkedIn's public search ignores its remote filter and returns onsite jobs worldwide (~100 per
+  30 min), so worldwide LinkedIn searches are off by default (`remote: []` in its settings) —
+  they'd cost ~$20/day for about one genuine remote job.
+- RemoteOK / WeWorkRemotely feeds were checked for remote jobs: both had no posts from the last
+  24 h, so they don't fit a "today only" portal.
+
+Only one worker can run at a time (a heartbeat lock in the `locks` collection): a second
+`npm run worker` exits with "Another worker is already running", so checks — and Apify bills —
+are never doubled. If a worker is killed, the next one can start after ~90 seconds.
+
+## Maintenance
+
+```bash
+npm run check -- linkedin   # run one check now
+npm run rescore             # re-apply the rules to stored raw data (no Apify cost)
+npm run replay -- <source> <apifyDatasetId|file.json>
+```
+
+Platform settings (keywords, interval, groups) are edited live in Admin → Platforms; the worker
+picks up changes on its next round.
+
+## Deploy
+
+The worker must run continuously, so use a host with long-running processes:
+
+- **VPS**: `npm run build && pm2 start ecosystem.config.cjs && pm2 save` (website + worker).
+- **Railway / Render**: web service `npm start` + background worker `npm run worker`, MongoDB Atlas.
+- **Vercel only** (no worker): `vercel.json` cron calls `/api/ingest/tick`, which runs any platform
+  that's due — needs a paid plan for frequent crons, and is less "live" than the worker.

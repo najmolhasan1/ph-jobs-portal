@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f8f8fb;
+  --surface: #ffffff;
+  --surface-2: #f4f3f8;
+  --border: #ebe9f1;
+  --border-strong: #dcd9e6;
+  --text: #191624;
+  --muted: #6f6b7e;
+  --faint: #a19eae;
+  --brand: #7b3fe4;
+  --brand-hover: #6a2fd6;
+  --brand-soft: #f2ecfe;
+  --brand-text: #6a2fd6;
+  --ok: #16834a;
+  --ok-soft: #e8f6ee;
+  --warn: #b45309;
+  --warn-soft: #fdf3e2;
+  --danger: #c0262d;
+  --danger-soft: #fdecec;
+  --shadow: 0 1px 2px rgb(25 22 36 / 0.04), 0 4px 16px rgb(25 22 36 / 0.04);
+  --shadow-hover: 0 2px 4px rgb(25 22 36 / 0.05), 0 12px 32px rgb(123 63 228 / 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0c14;
+    --surface: #16141f;
+    --surface-2: #1e1b29;
+    --border: #2a2638;
+    --border-strong: #383348;
+    --text: #efedf6;
+    --muted: #a6a1b6;
+    --faint: #6f6a80;
+    --brand: #9b6bf2;
+    --brand-hover: #ad85f5;
+    --brand-soft: #251c3d;
+    --brand-text: #c2a6fa;
+    --ok: #4ade80;
+    --ok-soft: #13261b;
+    --warn: #fbbf24;
+    --warn-soft: #2b2312;
+    --danger: #f87171;
+    --danger-soft: #2d1616;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-hover: 0 8px 28px rgb(0 0 0 / 0.4);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-text: var(--brand-text);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --shadow-card: var(--shadow);
+  --shadow-card-hover: var(--shadow-hover);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-feature-settings: "cv11", "ss01";
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-new { animation: slide-in 0.5s ease-out; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float { animation: float 6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-float, .animate-new { animation: none; }
+}

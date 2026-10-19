@@ -1,0 +1,41 @@
+{
+  "name": "ph-jobs-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db": "tsx scripts/dev-db.mts",
+    "typecheck": "tsc --noEmit",
+    "replay": "tsx --env-file=.env.local scripts/replay.mts",
+    "rescore": "tsx --env-file=.env.local scripts/rescore.mts",
+    "worker": "tsx --env-file=.env.local scripts/worker.mts",
+    "check": "tsx --env-file=.env.local scripts/check.mts",
+    "retag": "tsx --env-file=.env.local scripts/retag.mts",
+    "sync-config": "tsx --env-file=.env.local scripts/sync-config.mts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "apify-client": "^2.25.0",
+    "mongoose": "^8.24.5",
+    "next": "^15.5.28",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^15.5.28",
+    "mongodb-memory-server": "^10.4.3",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}
