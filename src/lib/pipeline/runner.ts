@@ -2,8 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { SOURCE_KEYS, type SourceKey, type SourceRow } from "@/lib/models";
 import { adapters } from "@/lib/sources";
-import { startOfTodayDhaka } from "@/lib/time";
-import { expireJobs, processItems, type ProcessStats } from "./process";
+import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
+import { cleanupRawItems, processItems, type ProcessStats } from "./process";
 
 // Each platform is checked on its own interval by an always-on worker (scripts/worker.mts):
 //   check = ask the platform for posts since the last successful check → gate → dedup → store.
@@ -42,9 +42,9 @@ export async function runCheck(key: SourceKey): Promise<ProcessStats | null> {
 
   const adapter = adapters[key];
   const startedAt = new Date();
-  // First check of the day starts from midnight: the portal is about today's posts.
-  const today = startOfTodayDhaka();
-  const since = source.lastSuccessAt && source.lastSuccessAt > today ? source.lastSuccessAt : today;
+  // Ask for posts since the last successful check, but never further back than the collection window.
+  const floor = startOfDayDhaka(INGEST_DAYS - 1);
+  const since = source.lastSuccessAt && source.lastSuccessAt > floor ? source.lastSuccessAt : floor;
   const run = await prisma.run.create({ data: { source: key, startedAt, since } });
 
   try {
@@ -66,7 +66,8 @@ export async function runCheck(key: SourceKey): Promise<ProcessStats | null> {
     return stats;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    const retryMs = /usage|billing|upgrad|limit exceeded|isn't enough/i.test(message) ? 30 * 60_000 : 60_000;
+    const billing = /usage|billing|upgrad|limit exceeded|isn't enough/i.test(message) && !/concurrent/i.test(message);
+    const retryMs = billing ? 30 * 60_000 : 60_000;
     await prisma.run.update({ where: { id: run.id }, data: { status: "FAILED", finishedAt: new Date(), error: message } });
     await prisma.source.update({
       where: { key },
@@ -185,7 +186,7 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // Out of Apify credit won't fix itself in a minute — back off instead of hammering the API.
-        const billing = /usage|billing|upgrad|limit exceeded|isn't enough/i.test(msg);
+        const billing = /usage|billing|upgrad|limit exceeded|isn't enough/i.test(msg) && !/concurrent/i.test(msg);
         log(key, `check failed: ${msg} — retrying in ${billing ? "30 min" : "1 min"}`);
         await sleep(billing ? 30 * 60_000 : 60_000);
         continue;
@@ -194,10 +195,10 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
     }
   };
 
-  // Housekeeping: hide expired jobs every 10 minutes.
+  // Housekeeping: drop old raw items every 10 minutes.
   const housekeeping = async () => {
     while (!signal?.aborted) {
-      await expireJobs().catch(() => undefined);
+      await cleanupRawItems().catch(() => undefined);
       await sleep(10 * 60_000);
     }
   };
@@ -221,6 +222,6 @@ export async function tick(): Promise<{ checked: SourceKey[]; errors: string[] }
       }
     }),
   );
-  await expireJobs();
+  await cleanupRawItems();
   return result;
 }

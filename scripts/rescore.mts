@@ -13,8 +13,8 @@ for (const source of SOURCE_KEYS) {
   if (!raws.length) continue;
   const stats = await processItems(source, raws.map((r) => r.payload as Record<string, unknown>), "rescore", {
     storeRaw: false,
-    // Raw items were stored only when they were fresh, so don't drop them for being from an earlier day.
-    todayOnly: false,
+    // Raw items were stored only when they were fresh, so don't drop them for their age now.
+    maxAgeDays: 0,
   });
   console.log(source.padEnd(9), stats);
 }

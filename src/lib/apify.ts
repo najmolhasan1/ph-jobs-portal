@@ -71,12 +71,34 @@ export async function apifyTokenStatus() {
   );
 }
 
+const errorText = (e: unknown) => {
+  const err = e as { message?: string; type?: string };
+  return `${err.type ?? ""} ${err.message ?? ""}`;
+};
+
+/** "…exceed your limit of 5 concurrent runs" — too many actors running at once, not a billing problem. */
+export function isConcurrencyError(e: unknown): boolean {
+  return /concurrent/i.test(errorText(e));
+}
+
 function isCreditError(e: unknown): boolean {
-  const err = e as { statusCode?: number; message?: string; type?: string };
-  return err.statusCode === 402 || CREDIT_ERROR.test(`${err.type ?? ""} ${err.message ?? ""}`);
+  if (isConcurrencyError(e)) return false; // its message mentions "upgrade", but credit is fine
+  return (e as { statusCode?: number }).statusCode === 402 || CREDIT_ERROR.test(errorText(e));
 }
 
 async function runWith(slot: Slot, actorId: string, input: Record<string, unknown>, timeoutSecs: number): Promise<RawItem[]> {
+  // The account allows only a few runs at once; when several platforms are checked together, wait for a slot.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await runOnce(slot, actorId, input, timeoutSecs);
+    } catch (e) {
+      if (!isConcurrencyError(e) || attempt === 8) throw e;
+      await new Promise((r) => setTimeout(r, 30_000));
+    }
+  }
+}
+
+async function runOnce(slot: Slot, actorId: string, input: Record<string, unknown>, timeoutSecs: number): Promise<RawItem[]> {
   // log: null → don't stream the actor's own logs into our worker output.
   const run = await slot.client.actor(actorId).call(input, { waitSecs: timeoutSecs, timeout: timeoutSecs, log: null });
   if (run.status !== "SUCCEEDED") throw new Error(`Apify ${actorId} run ${run.id} ended ${run.status}`);

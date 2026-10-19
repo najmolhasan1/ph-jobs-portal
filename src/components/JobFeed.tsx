@@ -28,9 +28,52 @@ type Filters = {
   category: string;
   skill: string;
 };
-const DEFAULTS: Filters = { q: "", track: "", posted: "today", source: "", remote: "", level: "", category: "", skill: "" };
+// Every published job stays listed, newest first; the date is an optional filter.
+const DEFAULTS: Filters = { q: "", track: "", posted: "", source: "", remote: "", level: "", category: "", skill: "" };
 const SAVED_KEY = "ph-career-radar-saved";
-const PAGE = 30;
+const PAGE = 24; // = PAGE_SIZE in jobs-query
+
+/** Page numbers with gaps: 1 … 4 5 [6] 7 8 … 20 */
+function pageList(current: number, total: number): (number | "…")[] {
+  const pages = new Set([1, total, current - 2, current - 1, current, current + 1, current + 2]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const out: (number | "…")[] = [];
+  sorted.forEach((p, i) => {
+    if (i && p - sorted[i - 1] > 1) out.push("…");
+    out.push(p);
+  });
+  return out;
+}
+
+function Pagination({ page, pages, onChange }: { page: number; pages: number; onChange: (p: number) => void }) {
+  if (pages <= 1) return null;
+  const btn = "grid h-10 min-w-10 place-items-center rounded-xl border px-3 text-sm font-bold transition disabled:opacity-40";
+  return (
+    <nav className="mt-8 flex flex-wrap items-center justify-center gap-1.5" aria-label="Pagination">
+      <button type="button" className={`${btn} border-line bg-surface hover:border-brand`} disabled={page <= 1} onClick={() => onChange(page - 1)}>
+        ← Prev
+      </button>
+      {pageList(page, pages).map((p, i) =>
+        p === "…" ? (
+          <span key={`gap${i}`} className="px-1 text-sm text-faint">…</span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onChange(p)}
+            aria-current={p === page ? "page" : undefined}
+            className={`${btn} tabular-nums ${p === page ? "border-brand bg-brand text-white" : "border-line bg-surface hover:border-brand"}`}
+          >
+            {p}
+          </button>
+        ),
+      )}
+      <button type="button" className={`${btn} border-line bg-surface hover:border-brand`} disabled={page >= pages} onClick={() => onChange(page + 1)}>
+        Next →
+      </button>
+    </nav>
+  );
+}
 
 type IconC = (p: { className?: string }) => React.ReactElement;
 
@@ -196,42 +239,59 @@ const selectCls =
 
 // ───────────────────────── page ─────────────────────────
 
-export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[]; initialCounts: Record<string, number> }) {
-  const [filters, setFilters] = useState<Filters>(DEFAULTS);
+export function JobFeed({
+  initialJobs,
+  initialCounts,
+  initialToday,
+}: {
+  initialJobs: JobDTO[];
+  initialCounts: Record<string, number>;
+  initialToday: number;
+}) {
+  const [filters, setFiltersRaw] = useState<Filters>(DEFAULTS);
+  const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [jobs, setJobs] = useState<JobDTO[]>(initialJobs);
   const [counts, setCounts] = useState(initialCounts);
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialJobs.length >= PAGE);
   const [live, setLive] = useState<"connecting" | "live" | "offline">("connecting");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState<"all" | "saved">("all");
   const [saved, setSaved] = useState<string[]>([]);
-  const [todayTotal, setTodayTotal] = useState(initialCounts.all ?? 0);
+  const [todayTotal, setTodayTotal] = useState(initialToday);
   const first = useRef(true);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setSaved(readSaved()), []);
 
+  // Any filter change starts again from page 1.
+  const setFilters = useCallback((next: Filters | ((f: Filters) => Filters)) => {
+    setFiltersRaw(next);
+    setPage(1);
+  }, []);
+
   // Debounce typing into the search box.
   useEffect(() => {
-    const t = setTimeout(() => setFilters((f) => (f.q === query ? f : { ...f, q: query })), 300);
+    const t = setTimeout(() => {
+      if (query !== filters.q) setFilters((f) => ({ ...f, q: query }));
+    }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, filters.q, setFilters]);
 
-  const set = useCallback(<K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v })), []);
+  const set = useCallback(<K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: v })), [setFilters]);
   const toggle = useCallback(
     <K extends keyof Filters>(k: K, v: Filters[K]) => setFilters((f) => ({ ...f, [k]: f[k] === v ? DEFAULTS[k] : v })),
-    [],
+    [setFilters],
   );
 
   const activeCount = useMemo(
-    () => (["source", "remote", "level", "category", "skill"] as const).filter((k) => filters[k]).length + (filters.posted !== "today" ? 1 : 0),
+    () => (["source", "remote", "level", "category", "skill", "posted"] as const).filter((k) => filters[k]).length,
     [filters],
   );
 
-  // Refetch the list + mode counts whenever filters change.
+  // Refetch the list + mode counts whenever filters change, and the list when the page changes.
+  const countsFor = useRef(toParams(DEFAULTS).toString());
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -241,26 +301,34 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
     let cancelled = false;
     setLoading(true);
     const p = toParams(filters);
-    Promise.all([fetch(`/api/jobs?${p}`).then((r) => r.json()), fetch(`/api/jobs/counts?${p}`).then((r) => r.json())])
-      .then(([d, c]: [{ jobs: JobDTO[] }, { counts: Record<string, number> }]) => {
+    const needCounts = countsFor.current !== p.toString();
+    const list = new URLSearchParams(p);
+    list.set("page", String(page));
+    list.set("limit", String(PAGE));
+    Promise.all([
+      fetch(`/api/jobs?${list}`).then((r) => r.json()),
+      needCounts ? fetch(`/api/jobs/counts?${p}`).then((r) => r.json()) : null,
+    ])
+      .then(([d, c]: [{ jobs: JobDTO[] }, { counts: Record<string, number> } | null]) => {
         if (cancelled) return;
         setJobs(d.jobs);
-        setCounts(c.counts);
-        setHasMore(d.jobs.length >= PAGE);
+        if (c) {
+          setCounts(c.counts);
+          countsFor.current = p.toString();
+        }
         setNewIds(new Set());
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [filters, view]);
+  }, [filters, page, view]);
 
   // Saved tab: fetch the bookmarked jobs.
   useEffect(() => {
     if (view !== "saved") return;
     if (!saved.length) {
       setJobs([]);
-      setHasMore(false);
       return;
     }
     let cancelled = false;
@@ -270,7 +338,6 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
       .then((d: { jobs: JobDTO[] }) => {
         if (cancelled) return;
         setJobs(d.jobs);
-        setHasMore(false);
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
@@ -278,7 +345,10 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
     };
   }, [view, saved]);
 
-  // Live stream of newly published jobs matching the current filters.
+  // Live stream of newly published jobs matching the current filters. They appear at the top of
+  // page 1; on later pages only the counts move, so the list doesn't jump while someone reads it.
+  const pageRef = useRef(page);
+  pageRef.current = page;
   useEffect(() => {
     if (view === "saved") return;
     const p = toParams(filters);
@@ -287,11 +357,13 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
     es.addEventListener("ready", () => setLive("live"));
     es.addEventListener("jobs", (e) => {
       const incoming: JobDTO[] = JSON.parse((e as MessageEvent).data);
-      setJobs((prev) => {
-        const seen = new Set(prev.map((j) => j.id));
-        return [...incoming.filter((j) => !seen.has(j.id)).reverse(), ...prev];
-      });
-      setNewIds((prev) => new Set([...prev, ...incoming.map((j) => j.id)]));
+      if (pageRef.current === 1) {
+        setJobs((prev) => {
+          const seen = new Set(prev.map((j) => j.id));
+          return [...incoming.filter((j) => !seen.has(j.id)).reverse(), ...prev].slice(0, PAGE);
+        });
+        setNewIds((prev) => new Set([...prev, ...incoming.map((j) => j.id)]));
+      }
       setCounts((c) => {
         const next: Record<string, number> = { ...c, all: (c.all ?? 0) + incoming.length };
         for (const j of incoming) for (const t of j.tracks ?? []) next[t] = (next[t] ?? 0) + 1;
@@ -304,17 +376,10 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
     return () => es.close();
   }, [filters, view]);
 
-  const loadMore = useCallback(async () => {
-    const last = jobs[jobs.length - 1];
-    if (!last?.postedAt) return;
-    setLoading(true);
-    const p = toParams(filters);
-    p.set("before", `${last.postedAt}|${last.id}`);
-    const d: { jobs: JobDTO[] } = await fetch(`/api/jobs?${p}`).then((r) => r.json());
-    setJobs((prev) => [...prev, ...d.jobs]);
-    setHasMore(d.jobs.length >= PAGE);
-    setLoading(false);
-  }, [jobs, filters]);
+  const goToPage = useCallback((p: number) => {
+    setPage(p);
+    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
 
   const toggleSave = useCallback((id: string) => {
     setSaved((prev) => {
@@ -335,6 +400,7 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
 
   const trackName = filters.track ? TRACK_META[filters.track as TrackKey]?.label : "";
   const total = counts[filters.track || "all"] ?? jobs.length;
+  const pages = Math.max(1, Math.ceil(total / PAGE));
 
   return (
     <div>
@@ -385,7 +451,7 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
       </form>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-faint">Quick picks</span>
-        <Pill active={filters.posted === "today"} onClick={() => set("posted", filters.posted === "today" ? "7" : "today")}>
+        <Pill active={filters.posted === "today"} onClick={() => toggle("posted", "today")}>
           Today (Dhaka)
         </Pill>
         <Pill active={filters.level === "junior"} onClick={() => toggle("level", "junior")}>Fresher friendly</Pill>
@@ -472,9 +538,11 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
               <Pill active={filters.remote === "1"} onClick={() => toggle("remote", "1")}>Remote</Pill>
             </FilterGroup>
             <FilterGroup title="Date posted">
+              <Pill active={!filters.posted} onClick={() => set("posted", "")}>Any time</Pill>
               <Pill active={filters.posted === "today"} onClick={() => set("posted", "today")}>Today</Pill>
               <Pill active={filters.posted === "3"} onClick={() => set("posted", "3")}>Last 3 days</Pill>
               <Pill active={filters.posted === "7"} onClick={() => set("posted", "7")}>Last 7 days</Pill>
+              <Pill active={filters.posted === "30"} onClick={() => set("posted", "30")}>Last 30 days</Pill>
             </FilterGroup>
             <FilterGroup title="Platform">
               <select value={filters.source} onChange={(e) => set("source", e.target.value)} className={selectCls} aria-label="Platform">
@@ -534,25 +602,22 @@ export function JobFeed({ initialJobs, initialCounts }: { initialJobs: JobDTO[];
           {view === "all" && filters.posted === "today" && (
             <button
               type="button"
-              onClick={() => set("posted", "7")}
+              onClick={() => set("posted", "")}
               className="mt-4 rounded-xl border border-line px-4 py-2 text-sm font-bold text-brand hover:border-brand"
             >
-              Show the last 7 days
+              Show all jobs
             </button>
           )}
         </div>
       )}
 
-      {hasMore && jobs.length > 0 && view === "all" && (
-        <div className="mt-8 text-center">
-          <button
-            onClick={loadMore}
-            disabled={loading}
-            className="rounded-xl border border-line bg-surface px-5 py-2.5 text-sm font-bold shadow-card hover:border-brand disabled:opacity-50"
-          >
-            {loading ? "Loading…" : "Load more jobs"}
-          </button>
-        </div>
+      {view === "all" && jobs.length > 0 && (
+        <>
+          <Pagination page={page} pages={pages} onChange={goToPage} />
+          <p className="mt-3 text-center text-xs text-faint tabular-nums">
+            Showing {(page - 1) * PAGE + 1}–{Math.min(page * PAGE, total)} of {total} jobs
+          </p>
+        </>
       )}
     </div>
   );

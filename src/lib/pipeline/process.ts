@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { JobStatus, SourceKey } from "@/lib/models";
 import { adapters, type NormalizedJob } from "@/lib/sources";
-import { isTodayInDhaka } from "@/lib/time";
+import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
 import { fingerprint } from "./fingerprint";
 import { extractWithLLM } from "./llm";
 import { evaluate, type Decision } from "./rules";
@@ -13,7 +13,7 @@ export interface ProcessStats {
   queued: number; // sent to moderation
   merged: number; // already known (same post, or same job on another platform)
   rejected: number;
-  stale: number; // not posted today
+  stale: number; // posted before the collection window
   skipped: number;
 }
 
@@ -30,12 +30,12 @@ async function processOne(
   source: SourceKey,
   raw: Record<string, unknown>,
   runId: string | undefined,
-  opts: { storeRaw: boolean; todayOnly: boolean },
+  opts: { storeRaw: boolean; maxAgeDays: number },
 ): Promise<keyof Omit<ProcessStats, "fetched">> {
   const job = adapters[source].normalize(raw);
   if (!job) return "skipped";
-  // Portal shows only jobs posted today (Dhaka time). Undated posts count as new.
-  if (opts.todayOnly && job.postedAt && !isTodayInDhaka(job.postedAt)) return "stale";
+  // Only pick up recent posts (last INGEST_DAYS Dhaka days). Undated posts count as new.
+  if (opts.maxAgeDays && job.postedAt && job.postedAt < startOfDayDhaka(opts.maxAgeDays - 1)) return "stale";
 
   if (opts.storeRaw) await prisma.rawItem.create({ data: { source, externalId: job.externalId, runId, payload: raw as Prisma.InputJsonValue } });
 
@@ -126,12 +126,12 @@ export async function processItems(
   source: SourceKey,
   items: Record<string, unknown>[],
   runId?: string,
-  { storeRaw = true, todayOnly = true } = {},
+  { storeRaw = true, maxAgeDays = INGEST_DAYS } = {},
 ): Promise<ProcessStats> {
   const stats: ProcessStats = { fetched: items.length, created: 0, queued: 0, merged: 0, rejected: 0, stale: 0, skipped: 0 };
   for (const raw of items) {
     try {
-      stats[await processOne(source, raw, runId, { storeRaw, todayOnly })]++;
+      stats[await processOne(source, raw, runId, { storeRaw, maxAgeDays })]++;
     } catch (error) {
       // A duplicate-key race between overlapping checks is just a merge.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") stats.merged++;
@@ -145,18 +145,10 @@ export async function processItems(
 }
 
 /**
- * Hide jobs past their deadline, or older than `days` (the portal is about fresh jobs), and
- * drop raw items older than 14 days.
+ * Housekeeping: drop raw items older than 14 days. Jobs themselves are never hidden automatically —
+ * once published, a job stays on the portal (newest first) until a moderator rejects it.
  */
-export async function expireJobs(days = 7): Promise<number> {
-  const now = new Date();
-  const res = await prisma.job.updateMany({
-    where: {
-      status: { in: ["approved", "pending"] },
-      OR: [{ deadline: { lt: now } }, { postedAt: { lt: new Date(now.getTime() - days * 864e5) } }],
-    },
-    data: { status: "expired" },
-  });
-  await prisma.rawItem.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 14 * 864e5) } } });
+export async function cleanupRawItems(): Promise<number> {
+  const res = await prisma.rawItem.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 14 * 864e5) } } });
   return res.count;
 }

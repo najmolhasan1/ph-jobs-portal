@@ -1,13 +1,14 @@
 # PH Jobs — live junior dev job portal
 
 Picks up **intern / fresher / junior web & software jobs** in **Bangladesh or remote** the moment
-they're posted on 12 platforms, and shows **today's** jobs on the portal.
+they're posted on 13 platforms. Every published job stays on the portal (newest first, paginated);
+"Today" and other dates are filters.
 Product spec: [docs/PRD.md](docs/PRD.md).
 
 ```
 always-on worker (npm run worker) — one loop per platform
         │
-        ▼  today only (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → Postgres (Supabase)
+        ▼  last 3 days (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → Postgres (Supabase)
 Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin ◄── live platform status
 ```
 
@@ -70,7 +71,8 @@ The app only talks to Postgres through Prisma, so any Postgres host works the sa
 
 A job is **published** only if all of these hold (`src/lib/pipeline/rules.ts`):
 
-1. **Posted today** (Bangladesh time). Older posts are skipped.
+1. **Recent**: posted within the last `INGEST_DAYS` days (default 3, Bangladesh time) when first picked
+   up, so a worker that was off catches up. Once published, a job is never hidden automatically.
 2. **Software / web dev role**: developer, programmer, software engineer, frontend, MERN, SQA, DevOps…
    Sales, HR, civil engineering, teaching, etc. are filtered out.
 3. **Intern / junior / fresher**: from the title ("Intern", "Junior", "Trainee"), the board's level

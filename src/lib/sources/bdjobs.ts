@@ -1,4 +1,3 @@
-import { startOfTodayDhaka } from "@/lib/time";
 import { pickDate, pickStr, stripHtml } from "./pick";
 import type { RawItem, SourceAdapter } from "./types";
 
@@ -8,20 +7,31 @@ import type { RawItem, SourceAdapter } from "./types";
 const API = "https://api.bdjobs.com/Jobs/api/JobSearch/GetJobSearch";
 const HEADERS = { "User-Agent": "Mozilla/5.0 (PH Jobs portal)", Origin: "https://bdjobs.com", Referer: "https://bdjobs.com/" };
 
-async function search(params: Record<string, string>): Promise<RawItem[]> {
+const RPP = 50;
+
+async function searchPage(params: Record<string, string>): Promise<{ items: RawItem[]; totalPages: number }> {
   const qs = new URLSearchParams({
     Icat: "", industry: "", category: "", org: "", jobNature: "", Fcat: "", location: "", Qot: "",
     jobType: "", jobLevel: "", postedWithin: "1", deadline: "", keyword: "", pg: "1", qAge: "",
     Salary: "", experience: "", gender: "", MExp: "", genderB: "", MPostings: "", MCat: "", version: "",
-    rpp: "50", Newspaper: "", armyp: "", QDisablePerson: "", pwd: "", workplace: "", facilitiesForPWD: "",
+    rpp: String(RPP), Newspaper: "", armyp: "", QDisablePerson: "", pwd: "", workplace: "", facilitiesForPWD: "",
     SaveFilterList: "", UserFilterName: "", HUserFilterName: "", earlyJobAccess: "", isPro: "0",
     ToggleJobs: "true", isFresher: "false",
     ...params,
   });
   const res = await fetch(`${API}?${qs}`, { headers: HEADERS, signal: AbortSignal.timeout(30_000) });
   if (!res.ok) throw new Error(`BDJobs API HTTP ${res.status}`);
-  const json = (await res.json()) as { data?: RawItem[]; premiumData?: RawItem[] };
-  return [...(json.premiumData ?? []), ...(json.data ?? [])];
+  const json = (await res.json()) as { data?: RawItem[]; premiumData?: RawItem[]; common?: { totalpages?: number } };
+  return { items: [...(json.premiumData ?? []), ...(json.data ?? [])], totalPages: Number(json.common?.totalpages) || 1 };
+}
+
+/** Every page of a search — a busy day has more than one page of IT jobs. */
+async function search(params: Record<string, string>): Promise<RawItem[]> {
+  const first = await searchPage(params);
+  const rest = await Promise.all(
+    Array.from({ length: Math.min(first.totalPages, 20) - 1 }, (_, i) => searchPage({ ...params, pg: String(i + 2) })),
+  );
+  return [first, ...rest].flatMap((p) => p.items);
 }
 
 export const bdjobs: SourceAdapter = {
@@ -40,12 +50,14 @@ export const bdjobs: SourceAdapter = {
   async fetchNew({ since, config }) {
     const categories = (config.categories as string[] | undefined) ?? ["8"];
     const keywords = (config.keywords as string[] | undefined) ?? [];
+    const floor = since.getTime();
+    // BDJobs' "posted within" is in days: 1 for routine checks, wider when catching up.
+    const postedWithin = String(Math.min(7, Math.max(1, Math.ceil((Date.now() - floor) / 864e5))));
     const batches = await Promise.all([
-      ...categories.map((category) => search({ category })),
-      ...keywords.map((keyword) => search({ keyword })),
+      ...categories.map((category) => search({ category, postedWithin })),
+      ...keywords.map((keyword) => search({ keyword, postedWithin })),
     ]);
     const seen = new Set<string>();
-    const floor = Math.min(since.getTime(), startOfTodayDhaka().getTime());
     return batches.flat().filter((j) => {
       const id = String(j.Jobid ?? "");
       if (!id || seen.has(id)) return false;

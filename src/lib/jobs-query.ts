@@ -14,12 +14,14 @@ export interface JobFilters {
   skill?: string;
   /** Programming Hero track: level1 | level2 | phitron | aiml. */
   track?: string;
-  /** "today" (default on the portal), "3" or "7" days — by original post time, Dhaka calendar. */
+  /** "today" or a number of days ("3", "7", "30") by original post time, Dhaka calendar; empty = any time. */
   posted?: string;
   status?: JobStatus;
   /** Specific job ids (the "Saved" tab). */
   ids?: string[];
-  before?: string; // postedAt cursor (ISO) for pagination
+  before?: string; // postedAt cursor (ISO), for the live stream / API clients
+  /** 1-based page number (the portal's numbered pagination). */
+  page?: number;
   limit?: number;
 }
 
@@ -40,6 +42,7 @@ export function filtersFromParams(sp: URLSearchParams): JobFilters {
     status: JOB_STATUSES.includes(status as JobStatus) ? (status as JobStatus) : undefined,
     ids: sp.get("ids")?.split(",").filter(isJobId).slice(0, 100),
     before: sp.get("before") ?? undefined,
+    page: Math.max(1, Math.floor(Number(sp.get("page")) || 1)),
     limit: Number(sp.get("limit")) || undefined,
   };
 }
@@ -66,14 +69,22 @@ export function buildWhere(f: JobFilters): Prisma.JobWhereInput {
   if (f.category) and.push({ category: f.category });
   if (f.track) and.push({ tracks: { has: f.track } });
   if (f.ids) and.push({ id: { in: f.ids } });
+  const days = Number(f.posted);
   if (f.posted === "today") and.push({ postedAt: { gte: startOfTodayDhaka() } });
-  else if (f.posted === "3" || f.posted === "7") and.push({ postedAt: { gte: startOfDayDhaka(Number(f.posted) - 1) } });
+  else if (Number.isInteger(days) && days >= 1 && days <= 365) and.push({ postedAt: { gte: startOfDayDhaka(days - 1) } });
   if (f.skill) and.push({ skills: { hasSome: skillsMatching(f.skill, true) } });
   return { AND: and };
 }
 
 /** List views leave out the long fields; the job page loads the full row. */
 export const LIST_SELECT = { omit: { description: true, fingerprint: true }, include: { sources: true } } as const;
+
+export const PAGE_SIZE = 24;
+
+/** Number of jobs matching the filters (e.g. today's total for the hero line). */
+export function countJobs(f: JobFilters): Promise<number> {
+  return prisma.job.count({ where: buildWhere({ ...f, ids: undefined, before: undefined }) });
+}
 
 /** Approved jobs per track for the mode cards, honouring every filter except the track itself. */
 export async function trackCounts(f: JobFilters): Promise<Record<string, number>> {
@@ -99,10 +110,13 @@ export async function listJobs(f: JobFilters) {
       (where.AND as Prisma.JobWhereInput[]).push({ OR: cursor });
     }
   }
+  const take = Math.min(f.limit ?? PAGE_SIZE, 100);
   const jobs = await prisma.job.findMany({
     where,
     orderBy: [{ [sortField]: "desc" }, { id: "desc" }],
-    take: Math.min(f.limit ?? 30, 100),
+    take,
+    // Numbered pages; a cursor ("before") wins when both are given.
+    skip: !f.before && f.page && f.page > 1 ? (f.page - 1) * take : undefined,
     ...LIST_SELECT,
   });
   return jobs.map(serializeJob);
