@@ -131,7 +131,13 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
   }
   const lost = new AbortController();
   const heartbeat = setInterval(async () => {
-    if (!(await acquireWorkerLock(owner).catch(() => false))) {
+    let held: boolean;
+    try {
+      held = await acquireWorkerLock(owner);
+    } catch {
+      return; // database unreachable for a moment — try again on the next beat
+    }
+    if (!held) {
       console.error("Worker lock lost to another process — stopping this worker.");
       lost.abort();
     }
@@ -150,7 +156,15 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
 
   const loop = async (key: SourceKey) => {
     while (!signal?.aborted) {
-      const s = await prisma.source.findUnique({ where: { key } });
+      let s: Awaited<ReturnType<typeof prisma.source.findUnique>>;
+      try {
+        s = await prisma.source.findUnique({ where: { key } });
+      } catch (e) {
+        // A dropped database connection must not take the whole worker down.
+        log(key, `database unreachable (${e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e}) — retrying in 30 s`);
+        await sleep(30_000);
+        continue;
+      }
       const minutes = s?.intervalMinutes ?? adapters[key].intervalMinutes;
       if (!s?.enabled) {
         await sleep(30_000); // check again soon in case it gets switched on

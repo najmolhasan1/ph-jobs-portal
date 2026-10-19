@@ -109,9 +109,37 @@ picks up changes on its next round.
 
 ## Deploy
 
-The worker must run continuously, so use a host with long-running processes:
+The website and the worker can live in different places — both only talk to the database.
 
-- **VPS**: `npm run build && pm2 start ecosystem.config.cjs && pm2 save` (website + worker).
-- **Railway / Render**: web service `npm start` + background worker `npm run worker`, Supabase as the database.
-- **Vercel only** (no worker): `vercel.json` cron calls `/api/ingest/tick`, which runs any platform
-  that's due — needs a paid plan for frequent crons, and is less "live" than the worker.
+### Website on Vercel (free Hobby plan)
+
+1. [vercel.com](https://vercel.com) → **Add New → Project** → import this GitHub repo (Next.js is detected;
+   the build runs `prisma generate && next build`).
+2. **Environment Variables** (Settings → Environment Variables), copied from `.env.local`:
+
+   | Name | Value |
+   |---|---|
+   | `DATABASE_URL` | Supabase transaction pooler (port 6543) URL, ending in `?pgbouncer=true&schema=ph_jobs&connection_limit=1` |
+   | `DIRECT_URL` | Supabase session pooler (port 5432) URL, ending in `?schema=ph_jobs` |
+   | `APIFY_TOKENS` | as in `.env.local` (used by Admin → "Check now") |
+   | `ADMIN_TOKEN` | the `/admin` password |
+   | `ANTHROPIC_API_KEY`, `CLAUDE_MODEL` | optional, as in `.env.local` |
+
+   `connection_limit=1` keeps each serverless function to one database connection.
+3. **Deploy.** `vercel.json` pins the functions to Sydney (`syd1`), next to the Supabase project —
+   change it if the database is in another region.
+
+Vercel doesn't run long-lived processes, so the worker runs elsewhere (next section). The free plan
+allows only daily crons, so `vercel.json` has none. On a Pro plan you can let Vercel do the checking
+instead of a worker: add `"crons": [{ "path": "/api/ingest/tick", "schedule": "*/10 * * * *" }]` and
+set `CRON_SECRET`.
+
+### Worker
+
+Run `npm run worker` anywhere with `.env.local` pointing at the same Supabase database:
+
+- **This computer** (free): new jobs appear on the Vercel site within seconds, while it's on.
+- **VPS / Oracle Cloud Always Free VM** (24/7): `pm2 start ecosystem.config.cjs --only ph-jobs-worker && pm2 save`.
+- **Everything on one VPS**: `npm run build && pm2 start ecosystem.config.cjs && pm2 save` (website + worker).
+
+Run only one worker — a second one exits by itself (see above).
