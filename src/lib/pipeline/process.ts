@@ -26,12 +26,26 @@ function redact(text?: string): string | undefined {
     .replace(/(\+?88[\s-]?)?01[3-9]\d{2}[\s-]?\d{6}\b/g, "[phone hidden]");
 }
 
+/**
+ * Replace broken characters (half an emoji — a lone UTF-16 surrogate, common in scraped posts)
+ * throughout a value: Postgres rejects them, and every post must still be saved.
+ */
+function wellFormed<T>(value: T): T {
+  if (typeof value === "string") return value.toWellFormed() as T;
+  if (Array.isArray(value)) return value.map(wellFormed) as T;
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, wellFormed(v)])) as T;
+  }
+  return value;
+}
+
 async function processOne(
   source: SourceKey,
   raw: Record<string, unknown>,
   runId: string | undefined,
   opts: { storeRaw: boolean; maxAgeDays: number },
 ): Promise<keyof Omit<ProcessStats, "fetched">> {
+  raw = wellFormed(raw);
   const job = adapters[source].normalize(raw);
   if (!job) return "skipped";
   // Only pick up recent posts (last INGEST_DAYS Dhaka days). Undated posts count as new.
@@ -86,14 +100,15 @@ async function processOne(
   const existing = await prisma.job.findUnique({ where: { fingerprint: fp }, include: { sources: true } });
   if (existing) {
     if (!existing.sources.some((s) => s.source === source && s.url === (link.url ?? null))) {
-      await prisma.jobSource.create({ data: { ...link, jobId: existing.id } });
+      await prisma.jobSource.create({ data: wellFormed({ ...link, jobId: existing.id }) });
     }
     return "merged";
   }
 
   const description = job.unstructured ? redact(fields.description) : fields.description;
+  // wellFormed again: cutting text (summary, titles) can split an emoji in half.
   await prisma.job.create({
-    data: {
+    data: wellFormed({
       fingerprint: fp,
       title: fields.title,
       company: fields.company,
@@ -117,7 +132,7 @@ async function processOne(
       reason: verdict.reason,
       status,
       publishedAt: status === "approved" ? new Date() : undefined,
-    },
+    }),
   });
   return status === "approved" ? "created" : status === "pending" ? "queued" : "rejected";
 }
