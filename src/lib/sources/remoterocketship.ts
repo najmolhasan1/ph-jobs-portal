@@ -2,8 +2,9 @@ import { fetchText, nextPageProps, sleep } from "./http";
 import { pickStr } from "./pick";
 import type { RawItem, SourceAdapter } from "./types";
 
-// Remote Rocketship: remote jobs with entry-level / junior flags. Its listing page embeds
-// the jobs (Next.js page data), sorted by date added; we filter to entry-level, remote.
+// Remote Rocketship: remote jobs with seniority flags. Its listing page embeds the jobs (Next.js
+// page data), sorted by date added. All levels are fetched: junior roles go to every track, and
+// experienced ones to Level 2 — the gate decides.
 export const remoterocketship: SourceAdapter = {
   key: "remoterocketship",
   name: "Remote Rocketship",
@@ -18,7 +19,7 @@ export const remoterocketship: SourceAdapter = {
     const out = new Map<string, RawItem>();
     for (const title of (config.jobTitles as string[] | undefined) ?? [""]) {
       for (let page = 1; page <= (Number(config.maxPages) || 3); page++) {
-        const qs = new URLSearchParams({ page: String(page), sort: "DateAdded", seniority: "entry-level", ...(title && { jobTitle: title }) });
+        const qs = new URLSearchParams({ page: String(page), sort: "DateAdded", ...(title && { jobTitle: title }) });
         const props = nextPageProps<{ initialJobOpenings?: RawItem[] }>(
           await fetchText(`https://www.remoterocketship.com/?${qs}`),
           "remoterocketship.com",

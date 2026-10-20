@@ -22,11 +22,31 @@ export const TARGET_ROLES: { key: string; label: string; re: RegExp }[] = [
   { key: "fullstack", label: "Full Stack Developer", re: /full[- ]?stack/i },
   { key: "mern", label: "MERN Stack Developer", re: /\bmern\b/i },
   { key: "web", label: "Web Developer", re: /web ?(developer|development|engineer|programmer)/i },
-  { key: "qa", label: "QA / SQA / Automation QA", re: /\bs?qa\b|quality assurance|automation (qa|test(ing)?|engineer)|test automation|software tester|\btester\b/i },
+  { key: "qa", label: "QA / SQA / Automation QA", re: /\bs?qa\b|quality assurance|automation (qa|test(ing)?|engineer)|test automation|software tester|\btester\b|\btest engineer\b|\bsdet\b/i },
 ];
 
 export function matchRole(text: string): (typeof TARGET_ROLES)[number] | undefined {
   return TARGET_ROLES.find((r) => r.re.test(text));
+}
+
+/**
+ * On LinkedIn / Indeed a remote job's location is where applicants must be ("United States",
+ * "Greater Toronto Area"), unless it says worldwide/anywhere. Returns that area, if any.
+ */
+export function remoteArea(source: string, location?: string | null): string | undefined {
+  if (!location || !["linkedin", "indeed"].includes(source)) return undefined;
+  const where = location.replace(/\(?remote\)?/gi, "").replace(/[,\s|]+$/, "").trim();
+  return where && !/worldwide|anywhere|global|asia|apac/i.test(where) && !BD_PLACES.test(where) ? where : undefined;
+}
+
+// Experienced roles are welcome in Level 2 (Next Level: TypeScript, Next.js, Node/Express/NestJS,
+// PostgreSQL, Docker/AWS — graduates work as full-stack, backend and frontend engineers).
+// Hands-on engineering only: not QA, not management.
+const LEVEL2_ROLES = new Set(["frontend", "react", "nextjs", "javascript", "typescript", "backend", "nodejs", "fullstack", "mern", "web", "software-js"]);
+const MANAGEMENT = /\b(manager|director|head|chief|vp|cto|cio|consultant|architect|recruit(er|ing)?|owner)\b/i;
+
+export function isLevel2Experienced(roleKey: string, title: string): boolean {
+  return LEVEL2_ROLES.has(roleKey) && !MANAGEMENT.test(title);
 }
 
 // Course / training adverts that mention the same keywords.
@@ -250,13 +270,22 @@ export function evaluate(input: NormalizedJob): Evaluation {
   const inBD = BD_SOURCES.includes(job.source) || BD_PLACES.test(job.location ?? "") || BD_PLACES.test(job.title);
   if (job.location && !inBD && !isRemote) return out("reject", "onsite outside Bangladesh", 0.2);
   const allowed = job.remoteCountries?.filter(Boolean) ?? [];
+  if (!allowed.length && isRemote && !inBD) {
+    const area = remoteArea(job.source, job.location);
+    if (area) allowed.push(area);
+  }
   if (isRemote && !inBD && allowed.length && !allowed.some((c) => OPEN_TO_BD.test(c.trim()))) {
     return out("reject", `remote, but only for ${allowed.slice(0, 3).join(", ")}${allowed.length > 3 ? "…" : ""}`, 0.2);
   }
 
-  // 3. Junior / fresher / intern — only roles that are explicitly senior or mid-level are dropped.
-  //    A target role that doesn't state its level is published (it must reach the portal).
-  if (level === "senior" || level === "mid") return out("reject", `${level} level`, 0.3);
+  // 3. Level. Intern / junior / unstated → published in every matching track. Mid-level and senior
+  //    engineering roles on the Next Level stack are published too, but only in Level 2 (the
+  //    Next Level course prepares people to switch to better, experienced roles).
+  if (level === "senior" || level === "mid") {
+    if (!isLevel2Experienced(role.key, job.title)) return out("reject", `${level} level`, 0.3);
+    const what = `${level === "mid" ? "mid-level" : "senior"} · ${role.label} (Level 2)`;
+    return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.9), tracks: ["level2"] };
+  }
   const what = level ? `${level} · ${role.label}` : `${role.label} · level not stated`;
   return out("approve", job.unstructured ? `${what} (post)` : what, level ? 1 : 0.8);
 }

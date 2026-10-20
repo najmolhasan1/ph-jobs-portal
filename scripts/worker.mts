@@ -14,5 +14,17 @@ process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
 
 console.log("PH Jobs worker started — checking each enabled platform continuously. Ctrl+C to stop.");
-await runWorkers(controller.signal);
+// If the database can't be reached at startup (flaky network, database waking up), keep trying
+// instead of exiting. Another running worker is a real reason to stop.
+while (!controller.signal.aborted) {
+  try {
+    await runWorkers(controller.signal);
+    break;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.startsWith("Another worker")) throw e;
+    console.error(`Can't start yet (${msg.split("\n").filter(Boolean).pop()}) — retrying in 30 s`);
+    await new Promise((r) => setTimeout(r, 30_000));
+  }
+}
 await prisma.$disconnect();

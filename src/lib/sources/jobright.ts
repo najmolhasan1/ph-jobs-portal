@@ -12,7 +12,8 @@ export const jobright: SourceAdapter = {
   kind: "direct",
   intervalMinutes: 30,
   enabledByDefault: true,
-  defaultConfig: { queries: ROLE_SEARCHES.map((r) => (/intern/.test(r) ? r : `junior ${r}`)) },
+  // All levels: junior roles reach every track, experienced ones Level 2.
+  defaultConfig: { queries: ROLE_SEARCHES },
   async fetchNew({ since, config }) {
     const out = new Map<string, RawItem>();
     await eachTolerant((config.queries as string[] | undefined) ?? [], async (q) => {

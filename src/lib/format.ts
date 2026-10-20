@@ -43,7 +43,10 @@ export function jobTypeLabel(t?: string): string | undefined {
 }
 
 export function levelLabel(level?: string): string | undefined {
-  return level === "intern" ? "Internship" : level === "junior" ? "Junior / fresher" : level ? cap(level) : undefined;
+  if (level === "intern") return "Internship";
+  if (level === "junior") return "Junior / fresher";
+  if (level === "mid") return "Mid-level";
+  return level ? cap(level) : undefined;
 }
 
 /** Experience line for cards: the post's own wording, else the level. */

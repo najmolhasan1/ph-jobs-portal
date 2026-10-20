@@ -537,6 +537,7 @@ export function JobFeed({
               <Pill active={!filters.level} onClick={() => set("level", "")}>All</Pill>
               <Pill active={filters.level === "intern"} onClick={() => toggle("level", "intern")}>Internship</Pill>
               <Pill active={filters.level === "junior"} onClick={() => toggle("level", "junior")}>Junior / fresher</Pill>
+              <Pill active={filters.level === "experienced"} onClick={() => toggle("level", "experienced")}>Experienced</Pill>
             </FilterGroup>
             <FilterGroup title="Work preference">
               <Pill active={!filters.remote} onClick={() => set("remote", "")}>All</Pill>
