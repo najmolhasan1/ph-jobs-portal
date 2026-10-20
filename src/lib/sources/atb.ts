@@ -20,7 +20,7 @@ export const atb: SourceAdapter = {
     const keywords = (config.keywords as string[] | undefined) ?? [""];
     const out = new Map<string, RawItem>();
     for (const keyword of keywords) {
-      for (let page = 1; page <= 5; page++) {
+      for (let page = 1; page <= (Number(config.maxPages) || 5); page++) {
         const qs = new URLSearchParams({ page: String(page), ...(keyword && { keyword }) });
         const res = await fetchJson<{ data?: RawItem[] }>(`${API}?${qs}`, HEADERS);
         const rows = res.data ?? [];

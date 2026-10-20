@@ -52,7 +52,9 @@ export const bdjobs: SourceAdapter = {
     const keywords = (config.keywords as string[] | undefined) ?? [];
     const floor = since.getTime();
     // BDJobs' "posted within" is in days: 1 for routine checks, wider when catching up.
-    const postedWithin = String(Math.min(7, Math.max(1, Math.ceil((Date.now() - floor) / 864e5))));
+    // BDJobs only offers 1–7 days; a longer window (coverage sweep) asks for every open job ("").
+    const days = Math.max(1, Math.ceil((Date.now() - floor) / 864e5));
+    const postedWithin = days > 7 ? "" : String(days);
     const batches = await Promise.all([
       ...categories.map((category) => search({ category, postedWithin })),
       ...keywords.map((keyword) => search({ keyword, postedWithin })),

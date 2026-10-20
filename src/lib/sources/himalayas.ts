@@ -15,6 +15,28 @@ export const himalayas: SourceAdapter = {
   async fetchNew({ since, config }) {
     const out: RawItem[] = [];
     const maxPages = Number(config.maxPages) || 15;
+    // Coverage sweep: role searches (newest first) reach older openings the general feed doesn't.
+    const terms = config.searchTerms as string[] | undefined;
+    if (terms?.length) {
+      const seen = new Set<string>();
+      for (const q of terms) {
+        for (let page = 1; page <= maxPages; page++) {
+          const res = await fetchJson<{ jobs?: RawItem[] }>(
+            `https://himalayas.app/jobs/api/search?q=${encodeURIComponent(q)}&sort=recent&page=${page}`,
+          );
+          const jobs = res.jobs ?? [];
+          for (const j of jobs) {
+            if (seen.has(String(j.guid))) continue;
+            seen.add(String(j.guid));
+            out.push(j);
+          }
+          const oldest = Number(jobs.at(-1)?.pubDate ?? 0) * 1000;
+          if (jobs.length < 20 || oldest < since.getTime()) break;
+          await sleep(400);
+        }
+      }
+      return out.filter((j) => Number(j.pubDate) * 1000 > since.getTime() - 60_000);
+    }
     for (let page = 0; page < maxPages; page++) {
       const res = await fetchJson<{ jobs?: RawItem[] }>(`https://himalayas.app/jobs/api?limit=20&offset=${page * 20}`);
       const jobs = res.jobs ?? [];

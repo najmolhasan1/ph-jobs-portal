@@ -8,6 +8,7 @@ import { prisma } from "../src/lib/db";
 import { SOURCE_KEYS, type SourceKey } from "../src/lib/models";
 import { processItems } from "../src/lib/pipeline/process";
 import { ensureSources } from "../src/lib/pipeline/runner";
+import { DEEPER } from "../src/lib/pipeline/sweep";
 import { adapters } from "../src/lib/sources";
 import { startOfDayDhaka } from "../src/lib/time";
 
@@ -17,19 +18,6 @@ const freeOnly = args.includes("--free");
 const paidOnly = args.includes("--paid");
 const only = args.filter((a) => SOURCE_KEYS.includes(a as SourceKey)) as SourceKey[];
 
-// Deeper reads than a routine check, so the whole window is covered where the platform allows it.
-const DEEPER: Partial<Record<SourceKey, Record<string, unknown>>> = {
-  himalayas: { maxPages: 120 },
-  remoterocketship: { maxPages: 15 },
-  nextjobz: { maxNewPerCheck: 200 },
-  // Paid platforms: deeper, but capped — a 7-day pull of all four costs roughly $3–5 of Apify credit.
-  linkedin: { limitPerSearch: 50 },
-  linkedin_company: { maxPostsPerPage: 40 },
-  facebook: { maxPostsPerGroup: 15 },
-  reddit: { maxPostsPerSearch: 30 },
-  indeed: { maxRows: 30 },
-  x: { maxTweetsPerQuery: 40 },
-};
 
 await ensureSources();
 const since = startOfDayDhaka(days - 1);

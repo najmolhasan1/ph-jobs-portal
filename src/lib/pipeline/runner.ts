@@ -4,6 +4,7 @@ import { SOURCE_KEYS, type SourceKey, type SourceRow } from "@/lib/models";
 import { adapters } from "@/lib/sources";
 import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
 import { cleanupRawItems, processItems, type ProcessStats } from "./process";
+import { dueSweeps, runSweep } from "./sweep";
 
 // Each platform is checked on its own interval by an always-on worker (scripts/worker.mts):
 //   check = ask the platform for posts since the last successful check → gate → dedup → store.
@@ -203,7 +204,32 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
     }
   };
 
-  await Promise.all([...SOURCE_KEYS.map(loop), housekeeping()]);
+  // Coverage sweeps: re-read each platform's open listings on its schedule (sweep.ts), one
+  // platform at a time, and add anything the routine checks missed.
+  const sweeps = async () => {
+    await sleep(60_000); // let the routine checks start first
+    while (!signal?.aborted) {
+      let due: SourceKey[] = [];
+      try {
+        due = await dueSweeps();
+      } catch {
+        // database unreachable for a moment — try again next round
+      }
+      for (const key of due) {
+        if (signal?.aborted) break;
+        const t0 = Date.now();
+        try {
+          const st = await runSweep(key);
+          if (st) log(key, `coverage sweep: ${st.fetched} open listings → added ${st.created}, already had ${st.merged} (${Math.round((Date.now() - t0) / 1000)}s)`);
+        } catch (e) {
+          log(key, `coverage sweep failed: ${e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e}`);
+        }
+      }
+      await sleep(10 * 60_000);
+    }
+  };
+
+  await Promise.all([...SOURCE_KEYS.map(loop), housekeeping(), sweeps()]);
 }
 
 /** Serverless fallback (e.g. Vercel Cron): run every platform that is due right now. */

@@ -101,10 +101,18 @@ const SPAM = [
   "registration fee", "registration charge", "investment required", "earn daily", "daily income",
   "ঘরে বসে আয়", "income from home", "mlm", "binary plan", "joining fee", "security deposit",
 ];
+// A social post counts as a job post only with a clear employer signal. Loose words ("চাকরি",
+// "looking for", "apply") also appear in discussions and adverts, so they don't count alone.
 const HIRING = [
-  "hiring", "we are looking", "looking for", "vacancy", "job opening", "apply", "send your cv",
-  "send cv", "resume", "join our team", "নিয়োগ", "চাকরি", "নিয়োগ বিজ্ঞপ্তি", "প্রয়োজন",
+  "hiring", "we are looking", "we're looking", "is looking for", "are looking for a", "vacancy", "vacancies",
+  "job opening", "job opportunity", "position:", "role:", "send your cv", "send cv", "send your resume",
+  "apply now", "how to apply", "apply here", "apply via", "apply through", "apply at", "apply link",
+  "join our team", "job type", "job location", "requirements:", "responsibilities", "deadline",
+  "apply", "full-time", "full time", "part-time", "employment type", "job description", "opening",
+  "নিয়োগ", "নিয়োগ বিজ্ঞপ্তি", "আবেদন", "সিভি পাঠান", "লোক নেওয়া হবে", "প্রয়োজন",
 ];
+// Discussions and opinion posts ("Is software engineering dying? Comment below!").
+const DISCUSSION_RE = /কমেন্টে জানা|তোমার কী মনে হয়|আপনার কী মনে হয়|what do you think|let me know in the comments|share your thoughts|agree or disagree/i;
 
 const BD_PLACES =
   /bangladesh|dhaka|chattogram|chittagong|sylhet|khulna|rajshahi|barishal|barisal|rangpur|mymensingh|gazipur|narayanganj|cumilla|comilla|savar|bogura|jessore|jashore|cox.?s bazar|tongi|uttara|mirpur|gulshan|banani|dhanmondi|mohakhali/i;
@@ -211,6 +219,10 @@ const OPEN_TO_BD = /^(bd|bangladesh|asia|south asia|apac|asia[- ]pacific|worldwi
 const SERVICE_AD = [
   "our services", "we provide", "we offer", "order now", "inbox for price", "contact for service",
   "professional website & web application", "আমাদের সেবা", "পাশে আছে", "অর্ডার করুন", "বিস্তারিত জানতে ইনবক্স",
+  // Adverts aimed at job seekers or businesses, not openings.
+  "for your business", "professional website", "stop scrolling", "job seekers", "dream career", "dream job",
+  "get hired", "placement assistance", "job guarantee", "100% job", "looking for software development jobs",
+  "looking for a job?", "looking for jobs?", "my services include", "my services:",
 ];
 
 // Posts by people looking for work, not employers.
@@ -265,6 +277,7 @@ export function evaluate(input: NormalizedJob): Evaluation {
     // Social posts: the "title" is just the first line, so read the opening of the post.
     if (SEEKER.some((w) => lower.includes(w)) || SEEKER_RE.test(lower)) return out("reject", "job seeker's post, not a job", 0.1);
     if (DIGEST_RE.test(lower.slice(0, 300))) return out("reject", "list of several jobs, not one opening", 0.1);
+    if (DISCUSSION_RE.test(lower) && !/hiring|vacanc|apply|নিয়োগ|আবেদন/.test(lower)) return out("reject", "discussion post, not a job", 0.1);
     if (SERVICE_AD.some((w) => lower.includes(w))) return out("reject", "service advertisement, not a job", 0.1);
     if (COURSE_AD.test(lower.slice(0, 600))) return out("reject", "course / training advert, not a job", 0.1);
     role ??= matchRole(lower.slice(0, 600));
