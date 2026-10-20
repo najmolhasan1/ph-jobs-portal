@@ -93,3 +93,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .animate-float, .animate-new { animation: none; }
 }
+
+/* Hero backdrop: a faint grid that fades out towards the edges */
+.hero-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--text) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--text) 7%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%);
+}

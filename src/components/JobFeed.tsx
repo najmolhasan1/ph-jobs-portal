@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JobDTO } from "@/lib/jobs-query";
-import { SOURCE_LABELS } from "@/lib/format";
+import { SOURCE_LABELS, timeAgo } from "@/lib/format";
 import { CATEGORY_LABELS, SKILL_OPTIONS, TRACK_KEYS, TRACK_META, type TrackKey } from "@/lib/tracks";
-import { JobCard } from "./JobCard";
+import { CompanyAvatar, JobCard } from "./JobCard";
 import {
   BrainIcon,
-  CheckIcon,
+  ClockIcon,
   CloseIcon,
   CodeIcon,
   CpuIcon,
@@ -96,69 +96,128 @@ const TRACK_ICONS: Record<TrackKey, IconC> = { level1: CodeIcon, level2: LayersI
 
 // ───────────────────────── sections ─────────────────────────
 
-function Hero({ today }: { today: number }) {
+function Hero({
+  today,
+  total,
+  latest,
+  onBrowse,
+  onToday,
+}: {
+  today: number;
+  total: number;
+  latest: JobDTO[];
+  onBrowse: () => void;
+  onToday: () => void;
+}) {
+  const platforms = Object.keys(SOURCE_LABELS).length;
   return (
-    <section className="relative grid items-center gap-10 pb-10 pt-10 sm:pt-14 lg:grid-cols-[1.25fr_1fr]">
-      <div>
-        <p className="flex items-center gap-2 text-[11px] font-bold tracking-[0.2em] text-muted">
-          <span className="size-1.5 rounded-full bg-ok" />
-          YOUR NEXT OPPORTUNITY IS OUT THERE
-        </p>
-        <h1 className="mt-4 text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.5rem]">
-          Big ambitions.
-          <br />
-          Your <span className="text-brand">next opportunity.</span>
-        </h1>
-        <p className="mt-5 max-w-lg text-base leading-relaxed text-muted">
-          Fresh intern, fresher &amp; junior tech jobs from Bangladesh and remote teams — picked up the moment
-          they&apos;re posted and matched to what you&apos;re learning at Programming Hero.
-        </p>
-        <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-          <span className="flex items-center gap-2">
-            <span className="flex -space-x-2">
-              {[
-                ["B", "bg-[#f1eafe] text-[#7b3fe4]"],
-                ["L", "bg-[#e7effd] text-[#3b63c9]"],
-                ["F", "bg-[#fdeee3] text-[#c56a1d]"],
-              ].map(([l, c]) => (
-                <span key={l} className={`grid size-7 place-items-center rounded-full border-2 border-surface text-[11px] font-bold ${c}`}>
-                  {l}
-                </span>
-              ))}
-            </span>
-            <span className="text-muted">
-              <b className="font-bold text-ink">12 platforms</b> watched live
-            </span>
-          </span>
-          <span className="text-muted">
-            <b className="font-bold tabular-nums text-ink">{today}</b> matching {today === 1 ? "job" : "jobs"} posted today
-          </span>
-        </div>
+    <section className="relative isolate pb-12 pt-10 sm:pt-16">
+      {/* Backdrop: soft brand glow + a faint grid that fades out */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-24 -z-10 h-[560px] overflow-hidden">
+        <div className="hero-grid absolute inset-0" />
+        <div className="absolute left-1/2 top-0 h-80 w-[46rem] -translate-x-1/2 rounded-full bg-brand/20 blur-[110px]" />
+        <div className="absolute right-[6%] top-40 h-56 w-56 rounded-full bg-fuchsia-500/10 blur-[90px]" />
       </div>
 
-      {/* Decorative illustration */}
-      <div className="relative hidden h-64 lg:block" aria-hidden>
-        <div className="absolute inset-0 m-auto size-56 rounded-full bg-brand/10 blur-3xl" />
-        <div className="animate-float absolute left-1/2 top-1/2 -ml-12 -mt-12 grid size-24 place-items-center rounded-3xl bg-brand text-white shadow-[0_18px_40px_rgb(123_63_228/0.4)]">
-          <CodeIcon className="size-10" />
-        </div>
-        <div className="animate-float absolute left-[6%] top-[6%] flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold shadow-card [animation-delay:-2s]">
-          <span className="size-2 rounded-full bg-brand" /> React Developer
-        </div>
-        <div className="animate-float absolute right-0 top-[36%] flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold shadow-card [animation-delay:-4s]">
-          <span className="grid size-5 place-items-center rounded-md bg-brand-soft text-brand">
-            <SparkIcon className="size-3" />
+      <div className="grid items-center gap-12 lg:grid-cols-[1.4fr_1fr]">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-surface/70 px-3 py-1.5 text-xs font-semibold text-brand-text shadow-card backdrop-blur">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok/60" />
+              <span className="relative inline-flex size-2 rounded-full bg-ok" />
+            </span>
+            Live — new roles every few minutes
           </span>
-          Remote possibilities
+
+          <h1 className="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.6rem]">
+            Big ambitions.
+            <br />
+            Your{" "}
+            <span className="bg-linear-to-r lg:whitespace-nowrap from-brand via-[#a76bff] to-[#e05fd3] bg-clip-text text-transparent">
+              next opportunity.
+            </span>
+          </h1>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+            Intern, fresher &amp; experienced tech jobs from Bangladesh and remote teams — picked up the moment
+            they&apos;re posted and matched to what you&apos;re learning at Programming Hero.
+          </p>
+
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={onBrowse}
+              className="group inline-flex h-12 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-bold text-white shadow-[0_10px_30px_-8px_rgb(123_63_228/0.7)] transition hover:-translate-y-0.5 hover:bg-brand-hover"
+            >
+              Browse {total} jobs
+              <span className="transition group-hover:translate-x-0.5">→</span>
+            </button>
+            <button
+              type="button"
+              onClick={onToday}
+              className="inline-flex h-12 items-center gap-2 rounded-xl border border-line-strong bg-surface/70 px-5 text-sm font-bold text-ink backdrop-blur transition hover:border-brand/50"
+            >
+              <ClockIcon className="size-4 text-brand" /> Today&apos;s jobs
+            </button>
+          </div>
+
+          <dl className="mt-9 grid max-w-lg grid-cols-3 gap-3">
+            {[
+              [total, "jobs live"],
+              [today, "posted today"],
+              [platforms, "platforms"],
+            ].map(([n, label]) => (
+              <div key={label} className="rounded-2xl border border-line bg-surface/60 px-4 py-3 backdrop-blur">
+                <dt className="sr-only">{label}</dt>
+                <dd className="text-2xl font-extrabold tabular-nums tracking-tight">{n}</dd>
+                <dd className="text-xs font-medium text-muted">{label}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <div className="animate-float absolute bottom-[4%] left-[16%] flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold shadow-card [animation-delay:-1s]">
-          <span className="grid size-5 place-items-center rounded-full bg-ok-soft text-ok">
-            <CheckIcon className="size-3" />
-          </span>
-          Your next chapter
+
+        {/* Live feed preview: the newest real jobs */}
+        <div className="relative hidden lg:block" aria-label="Newest jobs">
+          <div aria-hidden className="absolute -inset-6 -z-10 rounded-[2rem] bg-linear-to-br from-brand/15 via-transparent to-fuchsia-500/10 blur-2xl" />
+          <div className="rounded-3xl border border-line bg-surface/80 p-5 shadow-[0_30px_80px_-30px_rgb(123_63_228/0.45)] backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <p className="flex items-center gap-2 text-sm font-bold">
+                <span className="grid size-7 place-items-center rounded-lg bg-brand-soft text-brand">
+                  <SparkIcon className="size-3.5" />
+                </span>
+                Just posted
+              </p>
+              <span className="rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-bold text-ok">● Live feed</span>
+            </div>
+            <ul className="space-y-2.5">
+              {latest.slice(0, 3).map((j, i) => (
+                <li
+                  key={j.id}
+                  className={`animate-float flex items-center gap-3 rounded-2xl border border-line bg-surface p-3 shadow-card ${
+                    i === 1 ? "translate-x-5 [animation-delay:-2s]" : i === 2 ? "[animation-delay:-4s]" : ""
+                  }`}
+                >
+                  <CompanyAvatar name={j.company} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{j.title}</p>
+                    <p className="truncate text-xs text-muted">
+                      {j.company ?? "Company not listed"} · {SOURCE_LABELS[j.sources[0]?.source] ?? j.sources[0]?.source}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[11px] font-semibold text-faint" suppressHydrationWarning>
+                    {timeAgo(j.postedAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={onBrowse}
+              className="mt-4 w-full rounded-xl bg-surface-2 py-2.5 text-xs font-bold text-brand-text transition hover:bg-brand-soft"
+            >
+              See all opportunities →
+            </button>
+          </div>
         </div>
-        <SparkIcon className="absolute right-[18%] top-[4%] size-4 text-brand/60" />
-        <SparkIcon className="absolute bottom-[18%] right-[12%] size-3 text-brand/40" />
       </div>
     </section>
   );
@@ -404,7 +463,17 @@ export function JobFeed({
 
   return (
     <div>
-      <Hero today={todayTotal} />
+      <Hero
+        today={todayTotal}
+        total={initialCounts.all ?? 0}
+        latest={initialJobs}
+        onBrowse={() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        onToday={() => {
+          setView("all");
+          set("posted", "today");
+          listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+      />
 
       <Modes
         counts={counts}
@@ -468,7 +537,7 @@ export function JobFeed({
       </div>
 
       {/* Toolbar */}
-      <div ref={listRef} className="mt-10 flex scroll-mt-24 flex-wrap items-end justify-between gap-3">
+      <div id="jobs" ref={listRef} className="mt-10 flex scroll-mt-24 flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold tracking-[0.18em] text-faint">A STEP CLOSER TO YOUR NEXT CHAPTER</p>
           <h2 className="mt-1 flex items-center gap-2 text-xl font-extrabold tracking-tight">
