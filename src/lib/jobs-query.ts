@@ -65,7 +65,8 @@ export function buildWhere(f: JobFilters): Prisma.JobWhereInput {
   if (f.source && SOURCE_KEYS.includes(f.source as never)) and.push({ sources: { some: { source: f.source } } });
   if (f.remote === "1") and.push({ isRemote: true });
   if (f.remote === "0") and.push({ isRemote: false });
-  if (f.level === "experienced") and.push({ level: { in: ["mid", "senior"] } });
+  // "Experienced" = Level 2: mid / senior, or roles asking for 1+ years.
+  if (f.level === "experienced") and.push({ tracks: { has: "level2" } });
   else if (f.level) and.push({ level: f.level });
   if (f.category) and.push({ category: f.category });
   if (f.track) and.push({ tracks: { has: f.track } });

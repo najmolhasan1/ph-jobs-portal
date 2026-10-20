@@ -4,7 +4,7 @@
 //   npm run retag
 import { prisma } from "../src/lib/db";
 import { extractSalary } from "../src/lib/pipeline/salary";
-import { isLevel2Experienced, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
+import { experienceYears, isLevel2Experienced, isSoftwareQA, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
 
 // Loaded in pages: one query for every job with its description times out on a slow link.
 const select = {
@@ -37,13 +37,19 @@ const level2: string[] = [];
 for (const j of jobs) {
   const set: Record<string, unknown> = {};
   const description = j.description ?? "";
-  // Fresher / junior / intern → Level 1 only; experienced roles → Level 2 only.
-  const tracks = experienced(j.level) ? ["level2"] : ["level1"];
+  const key = roleKey(j.title, description);
+  // Fresher / junior / intern → Level 1 only; mid / senior, or 1+ years asked, on a Next Level
+  // engineering role → Level 2 only (same rule as the gate).
+  const years = experienceYears(j);
+  const toLevel2 = experienced(j.level) || (years !== undefined && years >= 1 && !!key && isLevel2Experienced(key, j.title));
+  const tracks = toLevel2 ? ["level2"] : ["level1"];
   if (tracks.join() !== (j.tracks ?? []).join()) set.tracks = tracks;
   // Salary from the post text when the board gave none.
   const salary = j.salary ? undefined : extractSalary(description);
   if (salary) set.salary = salary;
-  const off = (j.status === "approved" || j.status === "pending") && offStack(j.title, description);
+  const live = j.status === "approved" || j.status === "pending";
+  // QA must be software testing; every other role must be on the JS/TS stack.
+  const off = live && (key === "qa" ? (isSoftwareQA(j.title, description) ? false : "not software QA") : offStack(j.title, description));
   if (off) {
     // Only jobs that pass the filter are kept in the database.
     toDelete.push(j.id);

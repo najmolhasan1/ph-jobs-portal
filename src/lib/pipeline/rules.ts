@@ -259,8 +259,11 @@ export function evaluate(input: NormalizedJob): Evaluation {
   }
   if (!role) return out("reject", "not a target role", 0.1);
 
-  // 1b. JavaScript/TypeScript stack only (QA roles are exempt — testing uses many tools).
-  if (role.key !== "qa") {
+  // 1b. JavaScript/TypeScript stack only (QA roles are exempt — testing uses many tools — but must
+  //     be software testing, not factory / lab quality assurance).
+  if (role.key === "qa") {
+    if (!isSoftwareQA(job.title, job.description)) return out("reject", "not software QA", 0.15);
+  } else {
     const off = offStack(job.title, job.description);
     if (off) return out("reject", `not a PH stack (${off})`, 0.15);
   }
@@ -286,6 +289,32 @@ export function evaluate(input: NormalizedJob): Evaluation {
     const what = `${level === "mid" ? "mid-level" : "senior"} · ${role.label} (Level 2)`;
     return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.9), tracks: ["level2"] };
   }
+  // Asks for 1+ years of experience (e.g. "1 to 3 years", "At least 2 years") → not a fresher job:
+  // engineering roles on the Next Level stack go to Level 2.
+  const years = experienceYears(job);
+  if (years !== undefined && years >= 1 && isLevel2Experienced(role.key, job.title)) {
+    const what = `${years}+ years · ${role.label} (Level 2)`;
+    return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.95), tracks: ["level2"] };
+  }
   const what = level ? `${level} · ${role.label}` : `${role.label} · level not stated`;
   return { ...out("approve", job.unstructured ? `${what} (post)` : what, level ? 1 : 0.8), tracks: ["level1"] };
+}
+
+/** Minimum years of experience the post asks for (experience line first, then the description). */
+export function experienceYears(job: { experience?: string | null; description?: string | null }): number | undefined {
+  return minYears(job.experience ?? undefined) ?? minYears(job.description ?? undefined);
+}
+
+// QA roles must be about software: factory, lab and garment quality assurance is not.
+// Titles that are software testing on their own ("QA Engineer", "SQA", "Playwright Tester").
+const SOFTWARE_QA_TITLE = /\bs?qa (engineer|analyst|tester|automation|lead|intern)|\bsqa\b|test engineer|\btester\b|\bsdet\b|software|automation|playwright|selenium|cypress|game/i;
+const SOFTWARE_QA = /software|\bsqa\b|testing|tester|test (cases?|plans?|automation|scripts?)|automat|selenium|cypress|playwright|appium|postman|jmeter|jira|\bbugs?\b|regression|\bsaas\b|web|mobile app|\bapi\b|\bui\b|#test/i;
+// Clear signs of factory / lab / office quality work.
+const NON_SOFTWARE_QA = /garment|knit|woven|textile|apparel|fabric|dyeing|\bwash\b|chemist|pharma|food|factory|laborator|skincare|cosmetic|production line|haccp|\bgmp\b|iso 22000|raw materials?|merchandis|construction|insurance|home medical equipment|care compliance/i;
+
+export function isSoftwareQA(title: string, description?: string | null): boolean {
+  if (NON_SOFTWARE_QA.test(title)) return false;
+  const opening = (description ?? "").slice(0, 600);
+  if (SOFTWARE_QA_TITLE.test(title)) return !NON_SOFTWARE_QA.test(opening);
+  return SOFTWARE_QA.test(`${title}\n${(description ?? "").slice(0, 4000)}`) && !NON_SOFTWARE_QA.test(opening);
 }
