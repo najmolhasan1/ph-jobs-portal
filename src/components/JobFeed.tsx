@@ -583,7 +583,7 @@ export function JobFeed({
       )}
 
       {/* Cards */}
-      <div className={`mt-6 grid gap-4 transition-opacity md:grid-cols-2 ${loading ? "opacity-60" : ""}`}>
+      <div className={`mt-6 grid gap-4 transition-opacity md:grid-cols-2 lg:grid-cols-3 ${loading ? "opacity-60" : ""}`}>
         {jobs.map((j) => (
           <JobCard key={j.id} job={j} isNew={newIds.has(j.id)} saved={saved.includes(j.id)} onToggleSave={toggleSave} />
         ))}
