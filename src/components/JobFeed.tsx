@@ -440,7 +440,7 @@ export function JobFeed({
             className="h-11 rounded-xl bg-transparent px-3 text-sm font-semibold text-muted outline-none sm:w-52"
             aria-label="Location"
           >
-            <option value="">Bangladesh + remote</option>
+            <option value="">All locations</option>
             <option value="0">Bangladesh (onsite)</option>
             <option value="1">Remote</option>
           </select>
@@ -451,6 +451,12 @@ export function JobFeed({
       </form>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="mr-1 text-xs font-semibold text-faint">Quick picks</span>
+        <Pill
+          active={!filters.posted && !filters.level && !filters.remote && !filters.skill}
+          onClick={() => setFilters((f) => ({ ...f, posted: "", level: "", remote: "", skill: "" }))}
+        >
+          All
+        </Pill>
         <Pill active={filters.posted === "today"} onClick={() => toggle("posted", "today")}>
           Today (Dhaka)
         </Pill>
@@ -528,17 +534,17 @@ export function JobFeed({
               ))}
             </FilterGroup>
             <FilterGroup title="Experience level">
-              <Pill active={!filters.level} onClick={() => set("level", "")}>Intern + junior</Pill>
+              <Pill active={!filters.level} onClick={() => set("level", "")}>All</Pill>
               <Pill active={filters.level === "intern"} onClick={() => toggle("level", "intern")}>Internship</Pill>
               <Pill active={filters.level === "junior"} onClick={() => toggle("level", "junior")}>Junior / fresher</Pill>
             </FilterGroup>
             <FilterGroup title="Work preference">
-              <Pill active={!filters.remote} onClick={() => set("remote", "")}>Any</Pill>
+              <Pill active={!filters.remote} onClick={() => set("remote", "")}>All</Pill>
               <Pill active={filters.remote === "0"} onClick={() => toggle("remote", "0")}>Onsite · Bangladesh</Pill>
               <Pill active={filters.remote === "1"} onClick={() => toggle("remote", "1")}>Remote</Pill>
             </FilterGroup>
             <FilterGroup title="Date posted">
-              <Pill active={!filters.posted} onClick={() => set("posted", "")}>Any time</Pill>
+              <Pill active={!filters.posted} onClick={() => set("posted", "")}>All</Pill>
               <Pill active={filters.posted === "today"} onClick={() => set("posted", "today")}>Today</Pill>
               <Pill active={filters.posted === "3"} onClick={() => set("posted", "3")}>Last 3 days</Pill>
               <Pill active={filters.posted === "7"} onClick={() => set("posted", "7")}>Last 7 days</Pill>
@@ -554,7 +560,7 @@ export function JobFeed({
             </FilterGroup>
             <FilterGroup title="Skill">
               <select value={filters.skill} onChange={(e) => set("skill", e.target.value)} className={selectCls} aria-label="Skill">
-                <option value="">Any skill</option>
+                <option value="">All skills</option>
                 {SKILL_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}

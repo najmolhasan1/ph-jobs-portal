@@ -18,14 +18,28 @@ export async function GET(req: Request) {
 
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setInterval> | undefined;
+  let closed = false;
+  const stop = () => {
+    closed = true;
+    clearInterval(timer);
+  };
 
   const stream = new ReadableStream({
     start(controller) {
-      const send = (event: string, data: unknown) =>
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      // The viewer may leave while a poll is still waiting on the database: never write after that.
+      const write = (chunk: string) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          stop();
+        }
+      };
+      const send = (event: string, data: unknown) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       send("ready", { since });
 
       const poll = async () => {
+        if (closed) return;
         try {
           const jobs = await prisma.job.findMany({
             where: { AND: [buildWhere(filters), { publishedAt: { gt: since } }] },
@@ -37,22 +51,22 @@ export async function GET(req: Request) {
             since = jobs[jobs.length - 1].publishedAt!;
             send("jobs", jobs.map(serializeJob));
           } else {
-            controller.enqueue(encoder.encode(": ping\n\n")); // keep proxies from closing the connection
+            write(": ping\n\n"); // keep proxies from closing the connection
           }
-        } catch (e) {
-          send("error", { message: String(e) });
+        } catch {
+          write(": db busy\n\n"); // a slow or dropped database connection — the next poll retries
         }
       };
       timer = setInterval(poll, POLL_MS);
       req.signal.addEventListener("abort", () => {
-        clearInterval(timer);
+        stop();
         try {
           controller.close();
         } catch {}
       });
     },
     cancel() {
-      clearInterval(timer);
+      stop();
     },
   });
 

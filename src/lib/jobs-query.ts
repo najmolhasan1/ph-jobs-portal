@@ -89,11 +89,12 @@ export function countJobs(f: JobFilters): Promise<number> {
 /** Approved jobs per track for the mode cards, honouring every filter except the track itself. */
 export async function trackCounts(f: JobFilters): Promise<Record<string, number>> {
   const where = buildWhere({ ...f, track: undefined, ids: undefined, before: undefined });
-  const [all, ...perTrack] = await Promise.all([
-    prisma.job.count({ where }),
-    ...TRACK_KEYS.map((t) => prisma.job.count({ where: { AND: [where, { tracks: { has: t } }] } })),
-  ]);
-  return { all, ...Object.fromEntries(TRACK_KEYS.map((t, i) => [t, perTrack[i]]).filter(([, n]) => n)) };
+  // One query (just the tracks column), counted here: several parallel counts exhaust the
+  // connection pool on a far-away database or a serverless connection_limit=1.
+  const rows = await prisma.job.findMany({ where, select: { tracks: true } });
+  const counts: Record<string, number> = { all: rows.length };
+  for (const { tracks } of rows) for (const t of tracks) if (TRACK_KEYS.includes(t as never)) counts[t] = (counts[t] ?? 0) + 1;
+  return counts;
 }
 
 export async function listJobs(f: JobFilters) {
