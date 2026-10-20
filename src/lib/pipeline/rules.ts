@@ -232,7 +232,7 @@ const SEEKER_RE = /\bopen for (work|projects|opportunities)\b|\blooking for [^.\
 const DIGEST_RE =
   /\b\d+\s+(fresh|new|hot|latest)\s+[\w\s&,-]{0,30}(roles|jobs|internships|opportunities)\b|\b\d+\s+[\w\s-]{0,20}(roles|jobs) (hiring|posted) this week|(opportunities|jobs|roles) found today/;
 // Sources whose posts have no location field and come from everywhere.
-const STRICT_LOCATION_SOURCES = ["x"];
+const STRICT_LOCATION_SOURCES = ["x", "hackernews", "reddit"];
 // Places that, mentioned in a tweet, mean the opening is somewhere other than Bangladesh.
 const NON_BD_PLACES =
   /\b(india|indian|hyderabad|bangalore|bengaluru|pune|mumbai|delhi|gurgaon|gurugram|noida|chennai|kolkata|nigeria|nigerians|lagos|abuja|nysc|pakistan|karachi|lahore|kenya|nairobi|ghana|philippines|manila|usa only|us only|us-based|uk only|eu only|europe only)\b/;
@@ -302,7 +302,7 @@ export function evaluate(input: NormalizedJob): Evaluation {
   const BD_SOURCES = ["bdjobs", "atb", "nextjobz", "skilljobs"];
   const inBD = BD_SOURCES.includes(job.source) || BD_PLACES.test(job.location ?? "") || BD_PLACES.test(job.title);
   if (job.location && !inBD && !isRemote) return out("reject", "onsite outside Bangladesh", 0.2);
-  // Tweets carry no location field and are mostly from other countries: keep one only when it
+  // Tweets, HN and Reddit posts carry no location field and are mostly from other countries: keep one only when it
   // names Bangladesh, or is remote and explicitly open to everyone.
   if (STRICT_LOCATION_SOURCES.includes(job.source) && !inBD && !BD_PLACES.test(body)) {
     const openToAll = isRemote && /worldwide|anywhere|global|any country|all countries|location independent/i.test(lower);
