@@ -8,7 +8,7 @@ Product spec: [docs/PRD.md](docs/PRD.md).
 ```
 always-on worker (npm run worker) — one loop per platform
         │
-        ▼  last 3 days (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → Postgres (Supabase)
+        ▼  last 7 days (Dhaka) → gate: dev role? junior? BD, or remote open to BD? → dedup → Postgres (Supabase)
 Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin ◄── live platform status
 ```
 
@@ -71,7 +71,7 @@ The app only talks to Postgres through Prisma, so any Postgres host works the sa
 
 A job is **published** only if all of these hold (`src/lib/pipeline/rules.ts`):
 
-1. **Recent**: posted within the last `INGEST_DAYS` days (default 3, Bangladesh time) when first picked
+1. **Recent**: posted within the last `INGEST_DAYS` days (default 7, Bangladesh time) when first picked
    up, so a worker that was off catches up. Once published, a job is never hidden automatically.
 2. **Software / web dev role**: developer, programmer, software engineer, frontend, MERN, SQA, DevOps…
    Sales, HR, civil engineering, teaching, etc. are filtered out.
@@ -102,9 +102,15 @@ are never doubled. If a worker is killed, the next one can start after ~90 secon
 
 ```bash
 npm run check -- linkedin   # run one check now
-npm run rescore             # re-apply the rules to stored raw data (no Apify cost)
+npm run backfill -- 7       # collect the last 7 days on every platform (--free / --paid)
+npm run retag               # re-apply changed rules (tracks, stack, level) to stored jobs
+npm run rescore             # add jobs missing from stored raw data (no Apify cost)
 npm run replay -- <source> <apifyDatasetId|file.json>
 ```
+
+**Every job that reaches the database stays there** — published or not. Nothing deletes jobs
+(no expiry, and none of the scripts above remove any); only the raw platform payloads kept for
+`rescore` are dropped after 14 days.
 
 Platform settings (keywords, interval, groups) are edited live in Admin → Platforms; the worker
 picks up changes on its next round.

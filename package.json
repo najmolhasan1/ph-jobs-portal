@@ -19,7 +19,8 @@
     "db:push": "node --env-file=.env.local node_modules/prisma/build/index.js db push",
     "migrate:mongo": "tsx --env-file=.env.local scripts/migrate-from-mongo.mts",
     "postinstall": "prisma generate",
-    "copy-db": "tsx --env-file=.env.local scripts/copy-db.mts"
+    "copy-db": "tsx --env-file=.env.local scripts/copy-db.mts",
+    "backfill": "tsx --env-file=.env.local scripts/backfill.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

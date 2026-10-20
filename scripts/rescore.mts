@@ -1,12 +1,11 @@
-// Rebuild all jobs from stored raw items (last 14 days) — run after changing rules or adapters.
-// No Apify cost. Moderator decisions are lost, since jobs are recreated.
+// Run the stored raw items (last 14 days) through the pipeline again, adding any job that's
+// missing — e.g. after an adapter fix. No Apify cost. Never deletes anything: every job that
+// ever reached the database stays there. To re-apply changed rules to stored jobs, use
+// `npm run retag`.
 //   npm run rescore
 import { prisma } from "../src/lib/db";
 import { SOURCE_KEYS } from "../src/lib/models";
 import { processItems } from "../src/lib/pipeline/process";
-
-const removed = await prisma.job.deleteMany({});
-console.log(`Removed ${removed.count} jobs; rebuilding from raw items…`);
 
 for (const source of SOURCE_KEYS) {
   const raws = await prisma.rawItem.findMany({ where: { source }, orderBy: { createdAt: "asc" } });
@@ -16,7 +15,7 @@ for (const source of SOURCE_KEYS) {
     // Raw items were stored only when they were fresh, so don't drop them for their age now.
     maxAgeDays: 0,
   });
-  console.log(source.padEnd(9), stats);
+  console.log(source.padEnd(9), `added ${stats.created + stats.queued + stats.rejected}, already stored ${stats.merged}`);
 }
 
 const counts = await prisma.job.groupBy({ by: ["status"], _count: { _all: true } });

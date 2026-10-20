@@ -21,7 +21,7 @@ export function startOfTodayDhaka(): Date {
  * portal once stored; this only decides how old a post may be when it's first picked up, so a
  * worker that was off for a while catches up on what it missed.
  */
-export const INGEST_DAYS = Number(process.env.INGEST_DAYS) || 3;
+export const INGEST_DAYS = Number(process.env.INGEST_DAYS) || 7;
 
 /** Start of the day `daysAgo` days back, Dhaka time. */
 export function startOfDayDhaka(daysAgo: number): Date {

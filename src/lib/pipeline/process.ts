@@ -126,21 +126,27 @@ export async function processItems(
   source: SourceKey,
   items: Record<string, unknown>[],
   runId?: string,
-  { storeRaw = true, maxAgeDays = INGEST_DAYS } = {},
+  { storeRaw = true, maxAgeDays = INGEST_DAYS, concurrency = 8 } = {},
 ): Promise<ProcessStats> {
   const stats: ProcessStats = { fetched: items.length, created: 0, queued: 0, merged: 0, rejected: 0, stale: 0, skipped: 0 };
-  for (const raw of items) {
+  const one = async (raw: Record<string, unknown>) => {
     try {
       stats[await processOne(source, raw, runId, { storeRaw, maxAgeDays })]++;
     } catch (error) {
-      // A duplicate-key race between overlapping checks is just a merge.
+      // A duplicate-key race (overlapping checks, or two copies of one post in this batch) is just a merge.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") stats.merged++;
       else {
         stats.skipped++;
         console.error(`[process] ${source} item failed`, error);
       }
     }
-  }
+  };
+  // Several items at a time: each needs a few database round trips, which add up on a far-away database.
+  let next = 0;
+  const lanes = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) await one(items[next++]);
+  });
+  await Promise.all(lanes);
   return stats;
 }
 

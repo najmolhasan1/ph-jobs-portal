@@ -17,11 +17,14 @@ export const indeed: SourceAdapter = {
     queries: ["junior frontend developer", "junior react developer", "junior full stack developer", "junior qa engineer"],
     maxRows: 20,
   },
-  async fetchNew({ config }) {
+  async fetchNew({ since, config }) {
     const queries = (config.queries as string[] | undefined) ?? [String(config.query ?? "junior developer")];
     // One search at a time: the Apify account allows only a few concurrent runs.
     const out = [];
-    for (const query of queries) out.push(...(await runIndeed(config, query)));
+    // Indeed only offers 1 / 3 / 7 / 14-day windows: the smallest one covering `since`.
+    const ago = (Date.now() - since.getTime()) / 864e5;
+    const fromDays = String([1, 3, 7, 14].find((d) => d >= ago) ?? 14);
+    for (const query of queries) out.push(...(await runIndeed(config, query, fromDays)));
     return out;
   },
   normalize(raw) {
@@ -29,13 +32,13 @@ export const indeed: SourceAdapter = {
   },
 };
 
-function runIndeed(config: Record<string, unknown>, query: string) {
+function runIndeed(config: Record<string, unknown>, query: string, fromDays: string) {
   return runActor(String(config.actorId), {
     country: config.country ?? "us",
     query,
     remote: "remote", // `location: "remote"` returns nothing; this filter works
     level: "entry_level",
-    fromDays: "1",
+    fromDays,
     sort: "date",
     maxRows: Number(config.maxRows) || 30,
     enableUniqueJobs: true,
