@@ -278,14 +278,14 @@ export function evaluate(input: NormalizedJob): Evaluation {
     return out("reject", `remote, but only for ${allowed.slice(0, 3).join(", ")}${allowed.length > 3 ? "…" : ""}`, 0.2);
   }
 
-  // 3. Level. Intern / junior / unstated → published in every matching track. Mid-level and senior
-  //    engineering roles on the Next Level stack are published too, but only in Level 2 (the
-  //    Next Level course prepares people to switch to better, experienced roles).
+  // 3. Level decides the track: intern / junior / fresher (or unstated) → Level 1 only; mid-level
+  //    and senior engineering roles on the Next Level stack → Level 2 only (the Next Level course
+  //    prepares people to switch to better, experienced roles).
   if (level === "senior" || level === "mid") {
     if (!isLevel2Experienced(role.key, job.title)) return out("reject", `${level} level`, 0.3);
     const what = `${level === "mid" ? "mid-level" : "senior"} · ${role.label} (Level 2)`;
     return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.9), tracks: ["level2"] };
   }
   const what = level ? `${level} · ${role.label}` : `${role.label} · level not stated`;
-  return out("approve", job.unstructured ? `${what} (post)` : what, level ? 1 : 0.8);
+  return { ...out("approve", job.unstructured ? `${what} (post)` : what, level ? 1 : 0.8), tracks: ["level1"] };
 }

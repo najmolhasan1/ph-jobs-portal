@@ -5,7 +5,7 @@
 //     hands-on engineering roles on the Next Level stack.
 //   npm run retag
 import { prisma } from "../src/lib/db";
-import { detectTracks, isLevel2Experienced, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
+import { isLevel2Experienced, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
 
 const jobs = await prisma.job.findMany({
   select: {
@@ -31,8 +31,8 @@ const level2: string[] = [];
 for (const j of jobs) {
   const set: Record<string, unknown> = {};
   const description = j.description ?? "";
-  // Experienced roles live in Level 2 only.
-  const tracks = experienced(j.level) ? ["level2"] : detectTracks(j.title, j.skills ?? [], description);
+  // Fresher / junior / intern → Level 1 only; experienced roles → Level 2 only.
+  const tracks = experienced(j.level) ? ["level2"] : ["level1"];
   if (tracks.join() !== (j.tracks ?? []).join()) set.tracks = tracks;
   const off = (j.status === "approved" || j.status === "pending") && offStack(j.title, description);
   if (off) {
