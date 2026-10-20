@@ -6,6 +6,7 @@ import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
 import { fingerprint } from "./fingerprint";
 import { extractWithLLM } from "./llm";
 import { evaluate, type Decision } from "./rules";
+import { extractSalary } from "./salary";
 
 export interface ProcessStats {
   fetched: number;
@@ -51,7 +52,9 @@ async function processOne(
   // Only pick up recent posts (last INGEST_DAYS Dhaka days). Undated posts count as new.
   if (opts.maxAgeDays && job.postedAt && job.postedAt < startOfDayDhaka(opts.maxAgeDays - 1)) return "stale";
 
-  if (opts.storeRaw) await prisma.rawItem.create({ data: { source, externalId: job.externalId, runId, payload: raw as Prisma.InputJsonValue } });
+  // Only jobs that pass the filter are stored — a post that fails leaves no trace in the database.
+  let verdict = evaluate(job);
+  if (verdict.decision === "reject") return "rejected";
 
   // Same source + id already stored → nothing new (overlapping check windows).
   if (job.externalId) {
@@ -59,7 +62,6 @@ async function processOne(
     if (seen) return "merged";
   }
 
-  let verdict = evaluate(job);
   const fields: NormalizedJob & { level?: string } = { ...job, skills: verdict.skills, level: verdict.level, isRemote: verdict.isRemote };
   let summary: string | undefined;
   let byLLM = false;
@@ -92,6 +94,9 @@ async function processOne(
     }
   }
 
+  if (verdict.decision === "reject") return "rejected";
+  if (opts.storeRaw) await prisma.rawItem.create({ data: { source, externalId: job.externalId, runId, payload: raw as Prisma.InputJsonValue } });
+
   const status = STATUS[verdict.decision];
   const link = { source, url: job.sourceUrl, externalId: job.externalId, postedAt: job.postedAt };
   const fp = fingerprint(fields);
@@ -117,7 +122,8 @@ async function processOne(
       jobType: fields.jobType,
       level: fields.level,
       experience: job.experience,
-      salary: fields.salary,
+      // The board's salary field, else a salary line in the post itself.
+      salary: fields.salary ?? extractSalary(job.description),
       description,
       summary: summary ?? description?.slice(0, 280),
       skills: fields.skills,

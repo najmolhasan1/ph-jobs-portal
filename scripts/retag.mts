@@ -1,18 +1,23 @@
-// Re-apply the track, stack and level rules to stored jobs after changing them.
-// Unlike `npm run rescore`, this keeps every job and moderator decision, except that:
-//   - live or queued jobs built on a stack we don't teach (DevOps, .NET, Java, ERP…) are filtered out;
-//   - jobs rejected only for being mid-level / senior are published in Level 2 when they're
-//     hands-on engineering roles on the Next Level stack.
+// Re-apply the track, stack and level rules (and salary extraction) to stored jobs after changing them.
+// Only jobs that pass the filter are kept in the database, so jobs built on a stack we don't
+// teach (DevOps, .NET, Java, ERP…) are deleted.
 //   npm run retag
 import { prisma } from "../src/lib/db";
+import { extractSalary } from "../src/lib/pipeline/salary";
 import { isLevel2Experienced, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
 
-const jobs = await prisma.job.findMany({
-  select: {
-    id: true, title: true, skills: true, description: true, tracks: true, status: true, reason: true, level: true,
-    location: true, isRemote: true, sources: { select: { source: true } },
-  },
-});
+// Loaded in pages: one query for every job with its description times out on a slow link.
+const select = {
+  id: true, title: true, skills: true, description: true, tracks: true, status: true, reason: true, level: true, salary: true,
+  location: true, isRemote: true, sources: { select: { source: true } },
+} as const;
+const jobs: Awaited<ReturnType<typeof prisma.job.findMany<{ select: typeof select }>>> = [];
+for (let cursor: string | undefined; ; ) {
+  const page = await prisma.job.findMany({ select, orderBy: { id: "asc" }, take: 300, ...(cursor && { cursor: { id: cursor }, skip: 1 }) });
+  jobs.push(...page);
+  if (page.length < 300) break;
+  cursor = page[page.length - 1].id;
+}
 const experienced = (level: string | null) => level === "mid" || level === "senior";
 const roleKey = (title: string, description: string) =>
   matchRole(title)?.key ??
@@ -26,6 +31,7 @@ const roleKey = (title: string, description: string) =>
 const groups = new Map<string, { data: Record<string, unknown>; ids: string[] }>();
 let retagged = 0;
 const hidden: string[] = [];
+const toDelete: string[] = [];
 const restored: string[] = [];
 const level2: string[] = [];
 for (const j of jobs) {
@@ -34,11 +40,15 @@ for (const j of jobs) {
   // Fresher / junior / intern → Level 1 only; experienced roles → Level 2 only.
   const tracks = experienced(j.level) ? ["level2"] : ["level1"];
   if (tracks.join() !== (j.tracks ?? []).join()) set.tracks = tracks;
+  // Salary from the post text when the board gave none.
+  const salary = j.salary ? undefined : extractSalary(description);
+  if (salary) set.salary = salary;
   const off = (j.status === "approved" || j.status === "pending") && offStack(j.title, description);
   if (off) {
-    set.status = "rejected";
-    set.reason = `not a PH stack (${off})`;
+    // Only jobs that pass the filter are kept in the database.
+    toDelete.push(j.id);
     hidden.push(`${j.title} — ${off}`);
+    continue;
   } else if (j.status === "rejected" && j.reason?.startsWith("not a PH stack") && !offStack(j.title, description)) {
     // Filtered by an earlier, stricter version of the stack rule → publish it again.
     set.status = "approved";
@@ -64,6 +74,7 @@ for (const j of jobs) {
     if (set.tracks) retagged++;
   }
 }
+if (toDelete.length) await prisma.job.deleteMany({ where: { id: { in: toDelete } } });
 for (const { data, ids } of groups.values()) {
   for (let i = 0; i < ids.length; i += 500) {
     for (let attempt = 1; ; attempt++) {
@@ -77,7 +88,7 @@ for (const { data, ids } of groups.values()) {
     }
   }
 }
-console.log(`Re-tagged ${retagged} of ${jobs.length} jobs; filtered out ${hidden.length}:`);
+console.log(`Re-tagged ${retagged} of ${jobs.length} jobs; removed ${hidden.length} that no longer pass the filter:`);
 for (const h of hidden) console.log(`  - ${h}`);
 if (restored.length) console.log(`Restored ${restored.length}: ${restored.join("; ")}`);
 if (level2.length) {

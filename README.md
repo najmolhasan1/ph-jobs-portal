@@ -108,9 +108,10 @@ npm run rescore             # add jobs missing from stored raw data (no Apify co
 npm run replay -- <source> <apifyDatasetId|file.json>
 ```
 
-**Every job that reaches the database stays there** — published or not. Nothing deletes jobs
-(no expiry, and none of the scripts above remove any); only the raw platform payloads kept for
-`rescore` are dropped after 14 days.
+**Only jobs that pass the filter are stored**, and they stay — every stored job is on the portal.
+A post that fails the filter leaves nothing in the database (not even its raw payload). Stored
+jobs are never expired; `retag` removes one only if a rule change means it no longer passes.
+Raw payloads of stored jobs (for `rescore`) are dropped after 14 days.
 
 Platform settings (keywords, interval, groups) are edited live in Admin → Platforms; the worker
 picks up changes on its next round.
