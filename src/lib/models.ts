@@ -5,6 +5,7 @@ import type { Job, JobSource, Run, Source } from "@prisma/client";
 export const SOURCE_KEYS = [
   "bdjobs", "atb", "nextjobz", "linkedin", "linkedin_company", "facebook",
   "himalayas", "remoterocketship", "arc", "wellfound", "jobright", "reddit", "indeed",
+  "skilljobs", "remotive", "remoteok", "jobicy", "workingnomads", "weworkremotely", "hackernews", "greenhouse", "x",
 ] as const;
 export type SourceKey = (typeof SOURCE_KEYS)[number];
 

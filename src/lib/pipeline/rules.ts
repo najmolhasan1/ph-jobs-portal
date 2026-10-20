@@ -214,10 +214,26 @@ const SERVICE_AD = [
 ];
 
 // Posts by people looking for work, not employers.
+// "Looking for Software Engineer / Full-Stack opportunities", "open for work".
+const SEEKER_RE = /\bopen for (work|projects|opportunities)\b|\blooking for [^.\n]{0,40}(opportunities|roles|positions|openings)\b/;
+// Digests: "7 fresh Web3 internships found today", "3 AI roles hiring this week".
+const DIGEST_RE =
+  /\b\d+\s+(fresh|new|hot|latest)\s+[\w\s&,-]{0,30}(roles|jobs|internships|opportunities)\b|\b\d+\s+[\w\s-]{0,20}(roles|jobs) (hiring|posted) this week|(opportunities|jobs|roles) found today/;
+// Sources whose posts have no location field and come from everywhere.
+const STRICT_LOCATION_SOURCES = ["x"];
+// Places that, mentioned in a tweet, mean the opening is somewhere other than Bangladesh.
+const NON_BD_PLACES =
+  /\b(india|indian|hyderabad|bangalore|bengaluru|pune|mumbai|delhi|gurgaon|gurugram|noida|chennai|kolkata|nigeria|nigerians|lagos|abuja|nysc|pakistan|karachi|lahore|kenya|nairobi|ghana|philippines|manila|usa only|us only|us-based|uk only|eu only|europe only)\b/;
+
 const SEEKER = [
   "#opentowork", "open to work", "i am looking for", "i'm looking for a job", "looking for a job",
   "looking for an internship", "need a job", "available for hire", "hire me", "my cv", "আমি একজন",
   "আমার একটা চাকরি", "চাকরি খুঁজছি", "job খুঁজছি", "fresher here", "any opportunity for me",
+  // Social posts (X, Reddit): people looking for work, or asking whether anyone is hiring.
+  "looking for my next", "my next opportunity", "my next role", "putting myself out there", "i'm open to",
+  "i am open to", "is anyone hiring", "is anyone actually hiring", "anyone hiring", "who is hiring?",
+  "dm me if you're hiring", "if you're hiring", "if you are hiring", "seeking a new role", "seeking new opportunities",
+  "my portfolio", "my resume", "[for hire]", "(for hire)",
 ];
 
 export function evaluate(input: NormalizedJob): Evaluation {
@@ -247,7 +263,8 @@ export function evaluate(input: NormalizedJob): Evaluation {
   let role = excluded ? undefined : matchRole(job.title);
   if (job.unstructured) {
     // Social posts: the "title" is just the first line, so read the opening of the post.
-    if (SEEKER.some((w) => lower.includes(w))) return out("reject", "job seeker's post, not a job", 0.1);
+    if (SEEKER.some((w) => lower.includes(w)) || SEEKER_RE.test(lower)) return out("reject", "job seeker's post, not a job", 0.1);
+    if (DIGEST_RE.test(lower.slice(0, 300))) return out("reject", "list of several jobs, not one opening", 0.1);
     if (SERVICE_AD.some((w) => lower.includes(w))) return out("reject", "service advertisement, not a job", 0.1);
     if (COURSE_AD.test(lower.slice(0, 600))) return out("reject", "course / training advert, not a job", 0.1);
     role ??= matchRole(lower.slice(0, 600));
@@ -269,9 +286,15 @@ export function evaluate(input: NormalizedJob): Evaluation {
   }
 
   // 2. Bangladesh, or remote open to Bangladesh (worldwide / Asia).
-  const BD_SOURCES = ["bdjobs", "atb", "nextjobz"];
+  const BD_SOURCES = ["bdjobs", "atb", "nextjobz", "skilljobs"];
   const inBD = BD_SOURCES.includes(job.source) || BD_PLACES.test(job.location ?? "") || BD_PLACES.test(job.title);
   if (job.location && !inBD && !isRemote) return out("reject", "onsite outside Bangladesh", 0.2);
+  // Tweets carry no location field and are mostly from other countries: keep one only when it
+  // names Bangladesh, or is remote and explicitly open to everyone.
+  if (STRICT_LOCATION_SOURCES.includes(job.source) && !inBD && !BD_PLACES.test(body)) {
+    const openToAll = isRemote && /worldwide|anywhere|global|any country|all countries|location independent/i.test(lower);
+    if (!openToAll || NON_BD_PLACES.test(lower)) return out("reject", "location not open to Bangladesh", 0.2);
+  }
   const allowed = job.remoteCountries?.filter(Boolean) ?? [];
   if (!allowed.length && isRemote && !inBD) {
     const area = remoteArea(job.source, job.location);
@@ -310,7 +333,7 @@ export function experienceYears(job: { experience?: string | null; description?:
 const SOFTWARE_QA_TITLE = /\bs?qa (engineer|analyst|tester|automation|lead|intern)|\bsqa\b|test engineer|\btester\b|\bsdet\b|software|automation|playwright|selenium|cypress|game/i;
 const SOFTWARE_QA = /software|\bsqa\b|testing|tester|test (cases?|plans?|automation|scripts?)|automat|selenium|cypress|playwright|appium|postman|jmeter|jira|\bbugs?\b|regression|\bsaas\b|web|mobile app|\bapi\b|\bui\b|#test/i;
 // Clear signs of factory / lab / office quality work.
-const NON_SOFTWARE_QA = /garment|knit|woven|textile|apparel|fabric|dyeing|\bwash\b|chemist|pharma|food|factory|laborator|skincare|cosmetic|production line|haccp|\bgmp\b|iso 22000|raw materials?|merchandis|construction|insurance|home medical equipment|care compliance/i;
+const NON_SOFTWARE_QA = /garment|knit|woven|textile|apparel|fabric|dyeing|\bwash\b|chemist|pharma|food|factory|laborator|skincare|cosmetic|production line|haccp|\bgmp\b|iso 22000|raw materials?|merchandis|construction|insurance|home medical equipment|care compliance|linguist|translat|locali[sz]ation|language tester/i;
 
 export function isSoftwareQA(title: string, description?: string | null): boolean {
   if (NON_SOFTWARE_QA.test(title)) return false;

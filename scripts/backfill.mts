@@ -28,6 +28,7 @@ const DEEPER: Partial<Record<SourceKey, Record<string, unknown>>> = {
   facebook: { maxPostsPerGroup: 15 },
   reddit: { maxPostsPerSearch: 30 },
   indeed: { maxRows: 30 },
+  x: { maxTweetsPerQuery: 40 },
 };
 
 await ensureSources();

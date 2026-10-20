@@ -12,6 +12,15 @@ export const SOURCE_LABELS: Record<string, string> = {
   jobright: "Jobright",
   reddit: "Reddit",
   indeed: "Indeed",
+  skilljobs: "Skill.jobs",
+  remotive: "Remotive",
+  remoteok: "Remote OK",
+  jobicy: "Jobicy",
+  workingnomads: "Working Nomads",
+  weworkremotely: "We Work Remotely",
+  hackernews: "Hacker News",
+  greenhouse: "Company careers",
+  x: "X (Twitter)",
 };
 
 export function timeAgo(iso?: string): string {

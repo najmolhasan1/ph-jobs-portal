@@ -3,16 +3,25 @@ import { arc } from "./arc";
 import { atb } from "./atb";
 import { bdjobs } from "./bdjobs";
 import { facebook } from "./facebook";
+import { greenhouse } from "./greenhouse";
+import { hackernews } from "./hackernews";
 import { himalayas } from "./himalayas";
 import { indeed } from "./indeed";
+import { jobicy } from "./jobicy";
 import { jobright } from "./jobright";
 import { linkedin } from "./linkedin";
 import { linkedinCompany } from "./linkedinCompany";
 import { nextjobz } from "./nextjobz";
 import { reddit } from "./reddit";
+import { remoteok } from "./remoteok";
 import { remoterocketship } from "./remoterocketship";
+import { remotive } from "./remotive";
+import { skilljobs } from "./skilljobs";
 import type { SourceAdapter } from "./types";
 import { wellfound } from "./wellfound";
+import { weworkremotely } from "./weworkremotely";
+import { workingnomads } from "./workingnomads";
+import { x } from "./x";
 
 export const adapters: Record<SourceKey, SourceAdapter> = {
   bdjobs,
@@ -28,6 +37,15 @@ export const adapters: Record<SourceKey, SourceAdapter> = {
   jobright,
   reddit,
   indeed,
+  skilljobs,
+  remotive,
+  remoteok,
+  jobicy,
+  workingnomads,
+  weworkremotely,
+  hackernews,
+  greenhouse,
+  x,
 };
 
 export type { NormalizedJob, SourceAdapter } from "./types";

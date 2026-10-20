@@ -1,7 +1,7 @@
 # PH Jobs — live junior dev job portal
 
 Picks up **intern / fresher / junior web & software jobs** in **Bangladesh or remote** the moment
-they're posted on 13 platforms. Every published job stays on the portal (newest first, paginated);
+they're posted on 22 platforms. Every published job stays on the portal (newest first, paginated);
 "Today" and other dates are filters.
 Product spec: [docs/PRD.md](docs/PRD.md).
 
@@ -14,25 +14,34 @@ Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin �
 
 | Platform | How | Every | Cost |
 |---|---|---|---|
-| BDJobs | public JSON feed (IT category + keywords) | 3 min | free |
+| BDJobs | public JSON feed (IT category + keywords, every page) | 3 min | free |
 | atB Jobs | public JSON API | 5 min | free |
 | NextJobz | job list + each new job page (JSON-LD) | 5 min | free |
+| Skill.jobs | public JSON API (salary, level) | 30 min | free |
 | Himalayas | public API (says which countries a remote job is open to) | 10 min | free |
-| Remote Rocketship | page data, entry-level filter | 30 min | free |
+| Remote Rocketship | page data, all levels | 30 min | free |
 | Arc.dev | page data (`requiredCountries`) | 30 min | free |
 | Wellfound | page data | 30 min | free |
 | Jobright AI | search page data (sometimes bot-checked; retries) | 30 min | free |
+| Remotive | public API, software-dev (terms: a few calls a day, link back) | 6 h | free |
+| Remote OK | public API (terms: link back, name the source) | 60 min | free |
+| Jobicy | public API, dev industry (level, region, salary) | 60 min | free |
+| Working Nomads | public feed, Development category | 60 min | free |
+| We Work Remotely | RSS: full-stack, front-end, back-end | 30 min | free |
+| Hacker News | "Who is hiring?" monthly thread, via the Algolia HN API | 3 h | free |
+| Company career pages | Greenhouse board API (Canonical, GitLab, Automattic — editable) | 2 h | free |
+| Reddit | one combined RSS feed of r/forhire, remotejs, jobbit, hiring, WebDeveloperJobs, DeveloperJobs | 60 min | free |
 | LinkedIn jobs | Apify `curious_coder/linkedin-jobs-scraper`, Bangladesh | 15 min | ~$0.002/job |
 | LinkedIn company pages | Apify `harvestapi/linkedin-company-posts` (Talent Mesh Tech) | 30 min | ~$0.002/post |
 | Facebook groups (59) | Apify `memo23/facebook-public-group-posts-scraper` | 60 min | ~$0.0037/post (measured) |
-| Reddit | Apify `harshmaur/reddit-scraper`, "[Hiring]" posts | 6 h | ~$0.12/run |
-| Indeed | Apify, remote only — **off** (mostly US senior roles) | 60 min | ~$0.005/job |
+| X (Twitter) | Apify `memo23/x-twitter-search-scraper`, hiring searches | 3 h | ~$0.0004/tweet |
+| Indeed | Apify, remote entry-level role searches | 2 h | ~$0.005/job |
 
-Not added: **LinkedIn groups** (readable only when logged in; scraping with an account risks a ban),
-**Remote OK / Remote.co** (Remote OK's free API runs about a day behind, so nothing is ever "today";
-Remote.co blocks automated requests). Facebook: 36 of the 59 groups returned posts in testing; the
-other 23 look private or inactive. Apify spend with everything on is roughly $1.5–2.5/day
-($45–75/month), mostly Facebook — the free Apify plan (~$5/month) is not enough.
+Free sources come first; Apify is used only where no free access exists (LinkedIn, Facebook, X,
+Indeed). Not added: **X's own API** (paid), **LinkedIn groups** (login only — ban risk),
+**Arbeitnow** (mostly Germany / EU-only remote roles), **Chakri.com, Prothom Alo Jobs, Bayt,
+Careerjet BD** (down, blocked or no usable feed when tested in Oct 2026). Facebook: 36 of the 59
+groups returned posts in testing; the other 23 look private or inactive.
 
 Several Apify tokens can be set (`APIFY_TOKENS=a,b,c`): runs use the first token with credit and
 switch automatically when one runs out (Admin → Platforms shows each token's remaining credit).
