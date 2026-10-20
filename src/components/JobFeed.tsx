@@ -97,19 +97,16 @@ const TRACK_ICONS: Record<TrackKey, IconC> = { level1: CodeIcon, level2: LayersI
 // ───────────────────────── sections ─────────────────────────
 
 function Hero({
-  today,
   total,
   latest,
   onBrowse,
   onToday,
 }: {
-  today: number;
   total: number;
   latest: JobDTO[];
   onBrowse: () => void;
   onToday: () => void;
 }) {
-  const platforms = Object.keys(SOURCE_LABELS).length;
   return (
     <section className="relative isolate pb-12 pt-10 sm:pt-16">
       {/* Backdrop: soft brand glow + a faint grid that fades out */}
@@ -119,7 +116,7 @@ function Hero({
         <div className="absolute right-[6%] top-40 h-56 w-56 rounded-full bg-fuchsia-500/10 blur-[90px]" />
       </div>
 
-      <div className="grid items-center gap-12 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid items-center gap-12 lg:grid-cols-[1.6fr_1fr]">
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-surface/70 px-3 py-1.5 text-xs font-semibold text-brand-text shadow-card backdrop-blur">
             <span className="relative flex size-2">
@@ -129,12 +126,11 @@ function Hero({
             Live — new roles every few minutes
           </span>
 
-          <h1 className="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.6rem]">
-            Big ambitions.
+          <h1 className="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.3rem]">
+            <span className="lg:whitespace-nowrap">Your one-stop job search.</span>
             <br />
-            Your{" "}
-            <span className="bg-linear-to-r lg:whitespace-nowrap from-brand via-[#a76bff] to-[#e05fd3] bg-clip-text text-transparent">
-              next opportunity.
+            <span className="bg-linear-to-r from-brand via-[#a76bff] to-[#e05fd3] bg-clip-text text-transparent">
+              Feel the experience.
             </span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
@@ -160,19 +156,6 @@ function Hero({
             </button>
           </div>
 
-          <dl className="mt-9 grid max-w-lg grid-cols-3 gap-3">
-            {[
-              [total, "jobs live"],
-              [today, "posted today"],
-              [platforms, "platforms"],
-            ].map(([n, label]) => (
-              <div key={label} className="rounded-2xl border border-line bg-surface/60 px-4 py-3 backdrop-blur">
-                <dt className="sr-only">{label}</dt>
-                <dd className="text-2xl font-extrabold tabular-nums tracking-tight">{n}</dd>
-                <dd className="text-xs font-medium text-muted">{label}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
 
         {/* Live feed preview: the newest real jobs */}
@@ -301,11 +284,9 @@ const selectCls =
 export function JobFeed({
   initialJobs,
   initialCounts,
-  initialToday,
 }: {
   initialJobs: JobDTO[];
   initialCounts: Record<string, number>;
-  initialToday: number;
 }) {
   const [filters, setFiltersRaw] = useState<Filters>(DEFAULTS);
   const [page, setPage] = useState(1);
@@ -318,7 +299,6 @@ export function JobFeed({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState<"all" | "saved">("all");
   const [saved, setSaved] = useState<string[]>([]);
-  const [todayTotal, setTodayTotal] = useState(initialToday);
   const first = useRef(true);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -428,7 +408,6 @@ export function JobFeed({
         for (const j of incoming) for (const t of j.tracks ?? []) next[t] = (next[t] ?? 0) + 1;
         return next;
       });
-      setTodayTotal((n) => n + incoming.length);
     });
     es.onerror = () => setLive("offline");
     es.onopen = () => setLive("live");
@@ -464,7 +443,6 @@ export function JobFeed({
   return (
     <div>
       <Hero
-        today={todayTotal}
         total={initialCounts.all ?? 0}
         latest={initialJobs}
         onBrowse={() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
