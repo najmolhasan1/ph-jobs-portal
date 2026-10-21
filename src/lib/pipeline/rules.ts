@@ -22,7 +22,7 @@ export const TARGET_ROLES: { key: string; label: string; re: RegExp }[] = [
   { key: "fullstack", label: "Full Stack Developer", re: /full[- ]?stack/i },
   { key: "mern", label: "MERN Stack Developer", re: /\bmern\b/i },
   { key: "web", label: "Web Developer", re: /web ?(developer|development|engineer|programmer)/i },
-  { key: "qa", label: "QA / SQA / Automation QA", re: /\bs?qa\b|quality assurance|automation (qa|test(ing)?|engineer)|test automation|software tester|\btester\b|\btest engineer\b|\bsdet\b/i },
+  { key: "qa", label: "QA / SQA / Automation QA", re: /\bs?qa\b|quality assurance|automation (qa|test(ing)?|engineer)|test automation|software test(er|ing)?\b|\btest(ing)? intern|\btester\b|\btest engineer\b|\bsdet\b/i },
 ];
 
 export function matchRole(text: string): (typeof TARGET_ROLES)[number] | undefined {
@@ -297,7 +297,9 @@ export function evaluate(input: NormalizedJob): Evaluation {
   if (SPAM.some((w) => lower.includes(w))) return out("reject", "spam", 0);
 
   // 1. Must be one of the target roles.
-  const excluded = NOT_DEV.some((w) => title.includes(w));
+  // "Web Developer – Marketing Sites" is still a developer job: the list only rules out
+  // titles that aren't a developer / engineer role at all.
+  const excluded = NOT_DEV.some((w) => title.includes(w)) && !/\b(developer|programmer)\b|\bweb engineer\b|front[- ]?end engineer/.test(title);
   let role = excluded ? undefined : matchRole(job.title);
   if (job.unstructured) {
     // Social posts: the "title" is just the first line, so read the opening of the post.
