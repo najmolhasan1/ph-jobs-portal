@@ -15,6 +15,10 @@ export async function GET(req: Request) {
   delete filters.posted; // anything published from now on is new
   let since = new Date(sp.get("since") ?? Date.now());
   if (Number.isNaN(since.getTime())) since = new Date();
+  // On a reconnect the browser sends the id of the last event it got (the last publish time):
+  // continue from there, so jobs already delivered aren't sent again.
+  const lastEventId = new Date(req.headers.get("last-event-id") ?? "");
+  if (!Number.isNaN(lastEventId.getTime()) && lastEventId > since) since = lastEventId;
 
   const encoder = new TextEncoder();
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -38,23 +42,40 @@ export async function GET(req: Request) {
       const send = (event: string, data: unknown) => write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       send("ready", { since });
 
+      // Cursor = (publish time, id): many jobs can share one publish time (a batch), so the id
+      // breaks ties — none is skipped or sent twice.
+      let afterId = "";
+      let busy = false;
       const poll = async () => {
-        if (closed) return;
+        // A slow database can make a poll outlast the interval: never run two at once (both
+        // would read from the same cursor and send the same jobs).
+        if (closed || busy) return;
+        busy = true;
         try {
           const jobs = await prisma.job.findMany({
-            where: { AND: [buildWhere(filters), { publishedAt: { gt: since } }] },
-            orderBy: { publishedAt: "asc" },
+            where: {
+              AND: [
+                buildWhere(filters),
+                { OR: [{ publishedAt: { gt: since } }, ...(afterId ? [{ publishedAt: since, id: { gt: afterId } }] : [])] },
+              ],
+            },
+            orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
             take: 50,
             ...LIST_SELECT,
           });
           if (jobs.length) {
-            since = jobs[jobs.length - 1].publishedAt!;
-            send("jobs", jobs.map(serializeJob));
+            const last = jobs[jobs.length - 1];
+            since = last.publishedAt!;
+            afterId = last.id;
+            // The id lets a reconnecting browser resume after these (Last-Event-ID).
+            write(`id: ${since.toISOString()}\nevent: jobs\ndata: ${JSON.stringify(jobs.map(serializeJob))}\n\n`);
           } else {
             write(": ping\n\n"); // keep proxies from closing the connection
           }
         } catch {
           write(": db busy\n\n"); // a slow or dropped database connection — the next poll retries
+        } finally {
+          busy = false;
         }
       };
       timer = setInterval(poll, POLL_MS);

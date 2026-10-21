@@ -394,8 +394,12 @@ export function JobFeed({
     p.set("since", new Date().toISOString());
     const es = new EventSource(`/api/jobs/stream?${p}`);
     es.addEventListener("ready", () => setLive("live"));
+    // A job is counted once, even if a reconnect delivers it again.
+    const counted = new Set<string>();
     es.addEventListener("jobs", (e) => {
-      const incoming: JobDTO[] = JSON.parse((e as MessageEvent).data);
+      const incoming: JobDTO[] = (JSON.parse((e as MessageEvent).data) as JobDTO[]).filter((j) => !counted.has(j.id));
+      if (!incoming.length) return;
+      for (const j of incoming) counted.add(j.id);
       if (pageRef.current === 1) {
         setJobs((prev) => {
           const seen = new Set(prev.map((j) => j.id));
