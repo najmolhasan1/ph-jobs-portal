@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JobDTO } from "@/lib/jobs-query";
 import { SOURCE_LABELS, timeAgo } from "@/lib/format";
@@ -7,7 +8,6 @@ import { CATEGORY_LABELS, SKILL_OPTIONS, TRACK_KEYS, TRACK_META, type TrackKey }
 import { CompanyAvatar, JobCard } from "./JobCard";
 import {
   BrainIcon,
-  ClockIcon,
   CloseIcon,
   CodeIcon,
   CpuIcon,
@@ -100,12 +100,10 @@ function Hero({
   total,
   latest,
   onBrowse,
-  onToday,
 }: {
   total: number;
   latest: JobDTO[];
   onBrowse: () => void;
-  onToday: () => void;
 }) {
   return (
     <section className="relative isolate pb-12 pt-10 sm:pt-16">
@@ -118,24 +116,16 @@ function Hero({
 
       <div className="grid items-center gap-12 lg:grid-cols-[1.6fr_1fr]">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-brand/25 bg-surface/70 px-3 py-1.5 text-xs font-semibold text-brand-text shadow-card backdrop-blur">
-            <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok/60" />
-              <span className="relative inline-flex size-2 rounded-full bg-ok" />
-            </span>
-            Live — new roles every few minutes
-          </span>
-
-          <h1 className="mt-5 text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.3rem]">
-            <span className="lg:whitespace-nowrap">Your one-stop job search.</span>
+          <h1 className="text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.3rem]">
+            <span className="lg:whitespace-nowrap">You build the skills.</span>
             <br />
             <span className="bg-linear-to-r from-brand via-[#a76bff] to-[#e05fd3] bg-clip-text text-transparent">
-              Feel the experience.
+              We bring the opportunities.
             </span>
           </h1>
           <p className="mt-5 max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-            Intern, fresher &amp; experienced tech jobs from Bangladesh and remote teams — picked up the moment
-            they&apos;re posted and matched to what you&apos;re learning at Programming Hero.
+            Discover internships, fresher roles, and opportunities for experienced professionals in Bangladesh and with remote teams. Fresh
+            openings, all in one place, matched to the skills you&apos;re building at Programming Hero.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -144,16 +134,15 @@ function Hero({
               onClick={onBrowse}
               className="group inline-flex h-12 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-bold text-white shadow-[0_10px_30px_-8px_rgb(123_63_228/0.7)] transition hover:-translate-y-0.5 hover:bg-brand-hover"
             >
-              Browse {total} jobs
+              Browse {total} Jobs
               <span className="transition group-hover:translate-x-0.5">→</span>
             </button>
-            <button
-              type="button"
-              onClick={onToday}
+            <Link
+              href="/careers"
               className="inline-flex h-12 items-center gap-2 rounded-xl border border-line-strong bg-surface/70 px-5 text-sm font-bold text-ink backdrop-blur transition hover:border-brand/50"
             >
-              <ClockIcon className="size-4 text-brand" /> Today&apos;s jobs
-            </button>
+              <LayersIcon className="size-4 text-brand" /> Career Insights
+            </Link>
           </div>
 
         </div>
@@ -450,11 +439,6 @@ export function JobFeed({
         total={initialCounts.all ?? 0}
         latest={initialJobs}
         onBrowse={() => listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-        onToday={() => {
-          setView("all");
-          set("posted", "today");
-          listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        }}
       />
 
       <Modes
@@ -500,23 +484,6 @@ export function JobFeed({
           </button>
         </div>
       </form>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="mr-1 text-xs font-semibold text-faint">Quick picks</span>
-        <Pill
-          active={!filters.posted && !filters.level && !filters.remote && !filters.skill}
-          onClick={() => setFilters((f) => ({ ...f, posted: "", level: "", remote: "", skill: "" }))}
-        >
-          All
-        </Pill>
-        <Pill active={filters.posted === "today"} onClick={() => toggle("posted", "today")}>
-          Today (Dhaka)
-        </Pill>
-        <Pill active={filters.level === "junior"} onClick={() => toggle("level", "junior")}>Fresher friendly</Pill>
-        <Pill active={filters.level === "intern"} onClick={() => toggle("level", "intern")}>Internships</Pill>
-        <Pill active={filters.remote === "1"} onClick={() => toggle("remote", "1")}>Remote</Pill>
-        <Pill active={filters.skill === "React"} onClick={() => toggle("skill", "React")}>React</Pill>
-        <Pill active={filters.skill === "Next.js"} onClick={() => toggle("skill", "Next.js")}>Next.js</Pill>
-      </div>
 
       {/* Toolbar */}
       <div id="jobs" ref={listRef} className="mt-10 flex scroll-mt-24 flex-wrap items-end justify-between gap-3">

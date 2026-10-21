@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
+import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
 
@@ -17,12 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${manrope.variable} font-sans antialiased`}>
         <SiteHeader />
         <main className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6">{children}</main>
-        <footer className="border-t border-line">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-faint sm:px-6">
-            <span>© {new Date().getFullYear()} Programming Hero Career Radar</span>
-            <span>Junior and fresher roles, refreshed as they&apos;re posted.</span>
-          </div>
-        </footer>
+        <SiteFooter />
       </body>
     </html>
   );

@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { searchPage } from "@/lib/sources/bdjobs";
 import type { RawItem } from "@/lib/sources/types";
+import { fetchGovtSites } from "./govtSites";
 import { classify, normTitle, parseEducation, parseExperience, parseSalary } from "./taxonomy";
 
 // Career Insights collector: stores every job posted in Bangladesh (not only the portal's
@@ -87,6 +88,12 @@ export async function collectTeletalk(): Promise<number> {
     if (orgs.length < 20 || page * 20 >= (json.count ?? 0)) break;
   }
   return save(rows);
+}
+
+/** Army, Navy, Air Force, BGB, Police, Ansar and BPSC circulars from their own websites. */
+export async function collectGovtSites(): Promise<{ added: number; errors: string[] }> {
+  const { rows, errors } = await fetchGovtSites();
+  return { added: await save(rows), errors };
 }
 
 async function save(rows: (Row | null)[]): Promise<number> {

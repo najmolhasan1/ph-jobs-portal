@@ -5,7 +5,7 @@ import { adapters } from "@/lib/sources";
 import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
 import { cleanupRawItems, processItems, type ProcessStats } from "./process";
 import { dueSweeps, runSweep } from "./sweep";
-import { collectBdjobs, collectTeletalk } from "@/lib/market/collect";
+import { collectBdjobs, collectGovtSites, collectTeletalk } from "@/lib/market/collect";
 
 // Each platform is checked on its own interval by an always-on worker (scripts/worker.mts):
 //   check = ask the platform for posts since the last successful check → gate → dedup → store.
@@ -231,7 +231,8 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
   };
 
   // Career Insights: every Bangladesh job (all fields) from BDJobs and Teletalk govt circulars.
-  // New posts every 30 min; a full re-read of open listings every 6 h; Teletalk every 2 h.
+  // New posts every 30 min; a full re-read of open listings every 6 h; Teletalk and the forces' /
+  // BGB / police / BPSC sites every 2 h.
   const market = async () => {
     let lastFull = 0;
     let lastGovt = 0;
@@ -250,6 +251,8 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
           const added = await collectTeletalk();
           lastGovt = Date.now();
           log("market", `Teletalk govt jobs: ${added} new posts stored`);
+          const sites = await collectGovtSites();
+          log("market", `Forces / BGB / police / BPSC sites: ${sites.added} new circulars stored${sites.errors.length ? ` (failed: ${sites.errors.join("; ")})` : ""}`);
         } catch (e) {
           log("market", `Teletalk failed: ${e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e}`);
         }

@@ -172,4 +172,4 @@ async function load(): Promise<Market> {
 }
 
 /** Cached for 15 minutes — the numbers move slowly and the page shouldn't hit the database on every view. */
-export const getMarket = unstable_cache(load, ["career-market-v3"], { revalidate: 900 });
+export const getMarket = unstable_cache(load, ["career-market-v4"], { revalidate: 900 });

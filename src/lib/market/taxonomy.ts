@@ -668,10 +668,18 @@ export const OTHER_CATEGORY: Category = {
 export const ALL_CATEGORIES = [...CATEGORIES, OTHER_CATEGORY];
 export const categoryByKey = (key: string) => ALL_CATEGORIES.find((c) => c.key === key);
 
+/**
+ * Bengali য়/ড়/ঢ় can be one code point or a letter + nukta, and sites mix both. NFC turns both into
+ * letter + nukta — the form the patterns in this file use.
+ */
+export function bnFix(s: string): string {
+  return s.normalize("NFC");
+}
+
 // ── Classification ──────────────────────────────────────────────────────────────────────────
 
 const GOVT_EMPLOYER =
-  /government|\bgovt\b|ministry|directorate|deputy commissioner|\bDC office\b|upazila|zila parishad|police|army|navy|air force|\bBGB\b|ansar|fire service|commissioner of taxes|taxes zone|customs|\bNBR\b|petrobangla|\bBCIC\b|\bBPDB\b|\bBADC\b|\bBRTA\b|\bBTCL\b|bangladesh bank|sonali bank|janata bank|agrani bank|rupali bank|city corporation|pourashava|railway|সরকার|মন্ত্রণালয়|অধিদপ্তর|জেলা প্রশাসক/i;
+  /government|\bgovt\b|ministry|public service commission|\bBPSC\b|border guard|directorate|deputy commissioner|\bDC office\b|upazila|zila parishad|police|army|navy|air force|\bBGB\b|ansar|fire service|commissioner of taxes|taxes zone|customs|\bNBR\b|petrobangla|\bBCIC\b|\bBPDB\b|\bBADC\b|\bBRTA\b|\bBTCL\b|bangladesh bank|sonali bank|janata bank|agrani bank|rupali bank|city corporation|pourashava|railway|সরকার|মন্ত্রণালয়|অধিদপ্তর|জেলা প্রশাসক/i;
 const BANK_EMPLOYER = /\bbank\b|bkash|nagad|insurance|leasing|finance (ltd|limited|plc)|financial|microfinance|\bMFS\b/i;
 const OVERSEAS = /\b(saudi|ksa|qatar|dubai|uae|oman|kuwait|bahrain|jordan|romania|poland|croatia|serbia|malta|portugal|malaysia|singapore|japan|korea|mauritius|maldives|brunei)\b|সৌদি আরব|কাতার/i;
 
@@ -688,14 +696,13 @@ export interface Classified {
 }
 
 export function classify(input: { title: string; company?: string | null; location?: string | null; source: string; bdCat?: number }): Classified {
-  const title = input.title.normalize("NFKC");
-  const company = input.company ?? "";
+  const title = bnFix(input.title.normalize("NFKC"));
+  const company = bnFix(input.company ?? "");
   const byKey = (k: string) => CATEGORIES.find((c) => c.key === k)!;
 
-  // BCS circulars, wherever they come from.
+  // BCS circulars, wherever they come from (BPSC's other posts are ordinary government jobs).
   const bcs = byKey("bcs");
-  if (/\bBCS\b|বিসিএস|public service commission|\bBPSC\b/i.test(`${title} ${company}`))
-    return { category: "bcs", subcategory: pickSub(bcs, `${title} ${company}`)?.key ?? "general" };
+  if (/\bBCS\b|বিসিএস|non[- ]cadre|নন-ক্যাডার/i.test(title)) return { category: "bcs", subcategory: pickSub(bcs, title)?.key ?? "general" };
 
   // Government employer (every Teletalk circular is one).
   if (input.source === "teletalk" || GOVT_EMPLOYER.test(company)) {
