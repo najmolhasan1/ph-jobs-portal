@@ -231,6 +231,31 @@ const SEEKER_RE = /\bopen for (work|projects|opportunities)\b|\blooking for [^.\
 // Digests: "7 fresh Web3 internships found today", "3 AI roles hiring this week".
 const DIGEST_RE =
   /\b\d+\s+(fresh|new|hot|latest)\s+[\w\s&,-]{0,30}(roles|jobs|internships|opportunities)\b|\b\d+\s+[\w\s-]{0,20}(roles|jobs) (hiring|posted) this week|(opportunities|jobs|roles) found today/;
+// Remote jobs limited to a country or region, as the description says it. Each pattern captures
+// the region ("United States", "Europe").
+const PLACE = String.raw`(the\s+)?(us|usa|u\.s\.|united states|canada|uk|united kingdom|europe|eu|emea|latam|germany|india|poland|ukraine|australia)`;
+const REMOTE_ONLY_PATTERNS: RegExp[] = [
+  new RegExp(String.raw`(?:must|should|need to|required to)\s+(?:be\s+)?(?:located|based|residing|reside|live)\s+in\s+${PLACE}\b`, "i"),
+  new RegExp(String.raw`open to (?:candidates|applicants|residents)\s+(?:who are\s+)?(?:based|located|living)?\s*in\s+${PLACE}\b`, "i"),
+  new RegExp(String.raw`(?:offer|role|position|job) is (?:only )?available (?:from|in|to)\s*:?\s*${PLACE}\b`, "i"),
+  new RegExp(String.raw`\b(us|u\.s\.|usa|uk|canadian|eu)\s+(?:citizens?|residents?)\s+only\b`, "i"),
+  new RegExp(String.raw`(?:authori[sz]ed\s+to\s+work|work\s+authori[sz]ation)\s+(?:in\s+)?${PLACE}\b`, "i"),
+  new RegExp(String.raw`\b(us|u\.s\.|uk|eu)\s+work\s+authori[sz]ation\b`, "i"),
+  new RegExp(String.raw`location:\s*${PLACE}\b`, "i"),
+  new RegExp(String.raw`(?:remote|remote-friendly)[^.]{0,30}\b(?:across|within|throughout)\s+${PLACE}\b`, "i"),
+  new RegExp(String.raw`resident (?:in|of)\s+${PLACE}\s+for`, "i"),
+];
+
+/** The country / region a remote job is limited to, if its text says so. */
+export function remoteOnlyRegion(text?: string | null): string | undefined {
+  const t = (text ?? "").slice(0, 6000);
+  if (/worldwide|anywhere in the world|from anywhere|global(ly)? remote|any country/i.test(t)) return undefined;
+  for (const re of REMOTE_ONLY_PATTERNS) {
+    const m = t.match(re);
+    if (m) return [...m].slice(1).filter((g) => g && !/^the\s+$/i.test(g)).pop() ?? "one country";
+  }
+  return undefined;
+}
 // Sources whose posts have no location field and come from everywhere.
 const STRICT_LOCATION_SOURCES = ["x", "hackernews", "reddit"];
 // Places that, mentioned in a tweet, mean the opening is somewhere other than Bangladesh.
@@ -312,6 +337,11 @@ export function evaluate(input: NormalizedJob): Evaluation {
   if (!allowed.length && isRemote && !inBD) {
     const area = remoteArea(job.source, job.location);
     if (area) allowed.push(area);
+  }
+  // "Remote — US residents only", "must be authorized to work in the United States", … in the text.
+  if (isRemote && !inBD && !allowed.length) {
+    const only = remoteOnlyRegion(job.description);
+    if (only) allowed.push(only);
   }
   if (isRemote && !inBD && allowed.length && !allowed.some((c) => OPEN_TO_BD.test(c.trim()))) {
     return out("reject", `remote, but only for ${allowed.slice(0, 3).join(", ")}${allowed.length > 3 ? "…" : ""}`, 0.2);

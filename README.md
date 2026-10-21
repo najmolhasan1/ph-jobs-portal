@@ -1,7 +1,7 @@
 # PH Jobs — live junior dev job portal
 
 Picks up **intern / fresher / junior web & software jobs** in **Bangladesh or remote** the moment
-they're posted on 22 platforms. Every published job stays on the portal (newest first, paginated);
+they're posted on 25 platforms. Every published job stays on the portal (newest first, paginated);
 "Today" and other dates are filters.
 Product spec: [docs/PRD.md](docs/PRD.md).
 
@@ -36,6 +36,8 @@ Portal ◄── SSE /api/jobs/stream (new jobs appear within ~5 s)      Admin �
 | Facebook groups (59) | Apify `memo23/facebook-public-group-posts-scraper` | 60 min | ~$0.0037/post (measured) |
 | X (Twitter) | Apify `memo23/x-twitter-search-scraper`, hiring searches | 3 h | ~$0.0004/tweet |
 | Indeed | Apify, remote entry-level role searches | 2 h | ~$0.005/job |
+| Google Jobs | Apify `johnvc/Google-Jobs-Scraper`: remote searches across all job sites Google indexes (Glassdoor, ZipRecruiter, JobLeads, BeBee, Jooble, Built In, Jobgether, company career pages…) | 24 h | ~$0.09/page of 10 |
+| Company career pages (Lever, Ashby) | free public APIs; company lists editable in Admin | 2 h | free |
 
 Free sources come first; Apify is used only where no free access exists (LinkedIn, Facebook, X,
 Indeed). Not added: **X's own API** (paid), **LinkedIn groups** (login only — ban risk),

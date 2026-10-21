@@ -4,7 +4,7 @@
 //   npm run retag
 import { prisma } from "../src/lib/db";
 import { extractSalary } from "../src/lib/pipeline/salary";
-import { experienceVerdict, isLevel2Experienced, isSoftwareQA, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
+import { experienceVerdict, isLevel2Experienced, isSoftwareQA, matchRole, offStack, remoteArea, remoteOnlyRegion } from "../src/lib/pipeline/rules";
 
 // Loaded in pages: one query for every job with its description times out on a slow link.
 const select = {
@@ -51,6 +51,14 @@ for (const j of jobs) {
   const salary = j.salary ? undefined : extractSalary(description);
   if (salary) set.salary = salary;
   const live = j.status === "approved" || j.status === "pending";
+  // A remote job whose text limits it to another country / region ("open to candidates in the US").
+  const bd = /bangladesh|dhaka|chattogram|chittagong|sylhet/i.test(`${j.location ?? ""} ${j.title}`);
+  const onlyFor = live && j.isRemote && !bd ? remoteOnlyRegion(description) : undefined;
+  if (onlyFor && !/asia|apac|worldwide|bangladesh/i.test(onlyFor)) {
+    toDelete.push(j.id);
+    hidden.push(`${j.title} — remote, but only for ${onlyFor}`);
+    continue;
+  }
   // QA must be software testing; every other role must be on the JS/TS stack.
   const off = live && (key === "qa" ? (isSoftwareQA(j.title, description) ? false : "not software QA") : offStack(j.title, description));
   if (off) {

@@ -21,6 +21,9 @@ export const SOURCE_LABELS: Record<string, string> = {
   hackernews: "Hacker News",
   greenhouse: "Company careers",
   x: "X (Twitter)",
+  googlejobs: "Google Jobs",
+  lever: "Company careers",
+  ashby: "Company careers",
 };
 
 export function timeAgo(iso?: string): string {

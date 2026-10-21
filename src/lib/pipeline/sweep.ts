@@ -40,10 +40,13 @@ export const SWEEPS: Partial<Record<SourceKey, SweepPlan>> = {
   weworkremotely: { days: 30, everyHours: 12 },
   hackernews: { days: 30, everyHours: 12 },
   greenhouse: { days: 60, everyHours: 24 },
+  lever: { days: 60, everyHours: 24 },
+  ashby: { days: 60, everyHours: 24 },
   reddit: { days: 30, everyHours: 6 },
   // Paid (Apify): weekly, capped. LinkedIn's month window ≈ what its own search shows.
   linkedin: { days: 30, everyHours: 24 * 7, config: { limitPerSearch: 100 } },
   indeed: { days: 14, everyHours: 24 * 7, config: { maxRows: 50 } },
+  // Google Jobs runs daily over a week already (paid per page) — no extra sweep.
   // Facebook groups, X, LinkedIn company pages: the routine checks already read every new post,
   // and re-reading weeks of posts would cost a lot — no sweep.
 };

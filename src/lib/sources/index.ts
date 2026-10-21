@@ -2,13 +2,16 @@ import type { SourceKey } from "@/lib/models";
 import { arc } from "./arc";
 import { atb } from "./atb";
 import { bdjobs } from "./bdjobs";
+import { ashby } from "./ashby";
 import { facebook } from "./facebook";
+import { googlejobs } from "./googlejobs";
 import { greenhouse } from "./greenhouse";
 import { hackernews } from "./hackernews";
 import { himalayas } from "./himalayas";
 import { indeed } from "./indeed";
 import { jobicy } from "./jobicy";
 import { jobright } from "./jobright";
+import { lever } from "./lever";
 import { linkedin } from "./linkedin";
 import { linkedinCompany } from "./linkedinCompany";
 import { nextjobz } from "./nextjobz";
@@ -46,6 +49,9 @@ export const adapters: Record<SourceKey, SourceAdapter> = {
   hackernews,
   greenhouse,
   x,
+  googlejobs,
+  lever,
+  ashby,
 };
 
 export type { NormalizedJob, SourceAdapter } from "./types";
