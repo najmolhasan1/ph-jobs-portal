@@ -116,8 +116,9 @@ function Hero({
 
       <div className="grid items-center gap-12 lg:grid-cols-[1.6fr_1fr]">
         <div>
-          <h1 className="text-[2.6rem] font-extrabold leading-[1.04] tracking-[-0.035em] sm:text-6xl lg:text-[3.3rem]">
-            <span className="lg:whitespace-nowrap">You build the skills.</span>
+          {/* Each sentence stays on one line; the size scales with the screen so the longer one fits. */}
+          <h1 className="whitespace-nowrap text-[clamp(1.4rem,7vw,3.1rem)] font-extrabold leading-[1.08] tracking-[-0.035em] lg:text-[clamp(2.4rem,3.6vw,3.1rem)]">
+            <span>You build the skills.</span>
             <br />
             <span className="bg-linear-to-r from-brand via-[#a76bff] to-[#e05fd3] bg-clip-text text-transparent">
               We bring the opportunities.
