@@ -213,7 +213,8 @@ export interface Evaluation {
 }
 
 // Who a remote job is open to: these mean Bangladeshi applicants qualify.
-const OPEN_TO_BD = /^(bd|bangladesh|asia|south asia|apac|asia[- ]pacific|worldwide|anywhere|global|emea\+apac)$/i;
+// "BGD" = Bangladesh's ISO code, as some boards list the countries a remote job hires in.
+const OPEN_TO_BD = /^(bd|bgd|bangladesh|asia|south asia|apac|asia[- ]pacific|worldwide|anywhere|global|emea\+apac)$/i;
 
 // Agencies advertising their services ("we build websites"), not hiring.
 const SERVICE_AD = [

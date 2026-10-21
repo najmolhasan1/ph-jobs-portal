@@ -7,6 +7,7 @@ export const SOURCE_KEYS = [
   "himalayas", "remoterocketship", "arc", "wellfound", "jobright", "reddit", "indeed",
   "skilljobs", "remotive", "remoteok", "jobicy", "workingnomads", "weworkremotely", "hackernews", "greenhouse", "x",
   "googlejobs", "lever", "ashby",
+  "remoteworkapp", "earlytechroles", "newgradai", "youhired", "jobpilot", "remotelyaijobs", "builtin", "glassdoor", "wttj",
 ] as const;
 export type SourceKey = (typeof SOURCE_KEYS)[number];
 

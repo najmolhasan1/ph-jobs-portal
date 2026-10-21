@@ -41,6 +41,13 @@ export const SWEEPS: Partial<Record<SourceKey, SweepPlan>> = {
   hackernews: { days: 30, everyHours: 12 },
   greenhouse: { days: 60, everyHours: 24 },
   lever: { days: 60, everyHours: 24 },
+  builtin: { days: 30, everyHours: 24 },
+  remoteworkapp: { days: 30, everyHours: 24 },
+  earlytechroles: { days: 30, everyHours: 24 },
+  newgradai: { days: 30, everyHours: 24 },
+  youhired: { days: 30, everyHours: 24 },
+  jobpilot: { days: 30, everyHours: 24 },
+  remotelyaijobs: { days: 30, everyHours: 24 },
   ashby: { days: 60, everyHours: 24 },
   reddit: { days: 30, everyHours: 6 },
   // Paid (Apify): weekly, capped. LinkedIn's month window ≈ what its own search shows.

@@ -24,6 +24,15 @@ export const SOURCE_LABELS: Record<string, string> = {
   googlejobs: "Google Jobs",
   lever: "Company careers",
   ashby: "Company careers",
+  remoteworkapp: "Remote-Work.app",
+  earlytechroles: "Early Tech Roles",
+  newgradai: "NewGrad.ai",
+  youhired: "YouHired",
+  jobpilot: "JobPilot",
+  remotelyaijobs: "Remotely AI Jobs",
+  builtin: "Built In",
+  glassdoor: "Glassdoor",
+  wttj: "Welcome to the Jungle",
 };
 
 export function timeAgo(iso?: string): string {
