@@ -155,7 +155,7 @@ export function detectLevel(job: Pick<NormalizedJob, "title" | "level" | "experi
   if (/entry/.test(label)) return "junior";
   if (/mid-senior|director|executive/.test(label)) return "senior";
 
-  const years = minYears(job.experience) ?? minYears(job.description);
+  const years = experienceYears(job);
   if (years !== undefined) return years <= JUNIOR_MAX_YEARS ? "junior" : years <= 4 ? "mid" : "senior";
   if (/associate/.test(label)) return "junior"; // LinkedIn "Associate" ≈ 1–3 years, kept as junior
   return undefined;
@@ -317,28 +317,54 @@ export function evaluate(input: NormalizedJob): Evaluation {
     return out("reject", `remote, but only for ${allowed.slice(0, 3).join(", ")}${allowed.length > 3 ? "…" : ""}`, 0.2);
   }
 
-  // 3. Level decides the track: intern / junior / fresher (or unstated) → Level 1 only; mid-level
-  //    and senior engineering roles on the Next Level stack → Level 2 only (the Next Level course
-  //    prepares people to switch to better, experienced roles).
-  if (level === "senior" || level === "mid") {
-    if (!isLevel2Experienced(role.key, job.title)) return out("reject", `${level} level`, 0.3);
-    const what = `${level === "mid" ? "mid-level" : "senior"} · ${role.label} (Level 2)`;
-    return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.9), tracks: ["level2"] };
-  }
-  // Asks for 1+ years of experience (e.g. "1 to 3 years", "At least 2 years") → not a fresher job:
-  // engineering roles on the Next Level stack go to Level 2.
-  const years = experienceYears(job);
-  if (years !== undefined && years >= 1 && isLevel2Experienced(role.key, job.title)) {
-    const what = `${years}+ years · ${role.label} (Level 2)`;
-    return { ...out("approve", job.unstructured ? `${what} (post)` : what, 0.95), tracks: ["level2"] };
-  }
-  const what = level ? `${level} · ${role.label}` : `${role.label} · level not stated`;
-  return { ...out("approve", job.unstructured ? `${what} (post)` : what, level ? 1 : 0.8), tracks: ["level1"] };
+  // 3. Experience decides: fresher / intern / 0 years / unstated → Level 1; 1–2 years on a Next Level
+  //    engineering role → Level 2; senior titles and 3+ years are not for this portal.
+  const verdict = experienceVerdict(job, level, role.key);
+  if ("reject" in verdict) return out("reject", verdict.reject, 0.3);
+  const what = `${verdict.why} · ${role.label}${verdict.track === "level2" ? " (Level 2)" : ""}`;
+  return { ...out("approve", job.unstructured ? `${what} (post)` : what, verdict.track === "level2" ? 0.95 : 0.9), tracks: [verdict.track] };
 }
 
-/** Minimum years of experience the post asks for (experience line first, then the description). */
+/** Most years a Level 2 job may ask for. More than that is a senior role — not on the portal. */
+export const L2_MAX_YEARS = 2;
+// Senior job titles are never on the portal, whatever the experience line says.
+const SENIOR_ONLY_TITLE = /\b(s[eé]nior|sr\.?|lead|principal|staff|head|architect|manager|director|chief|vp|cto)\b/i;
+
+export type ExperienceVerdict = { track: "level1" | "level2"; why: string } | { reject: string };
+
+/** Level 1, Level 2, or not for the portal — from the title and the years of experience asked. */
+export function experienceVerdict(
+  job: { title: string; experience?: string | null; description?: string | null },
+  level: string | undefined | null,
+  roleKey: string,
+): ExperienceVerdict {
+  if (SENIOR_ONLY_TITLE.test(job.title)) return { reject: "senior position" };
+  const years = experienceYears(job);
+  if (years !== undefined) {
+    if (years > L2_MAX_YEARS) return { reject: `${years}+ years (senior)` };
+    // 1–2 years → Level 2 (engineering roles on the Next Level stack; others stay in Level 1).
+    if (years >= 1 && level !== "intern" && isLevel2Experienced(roleKey, job.title)) return { track: "level2", why: `${years}+ years` };
+    return { track: "level1", why: years ? `${years}+ years` : "fresher" };
+  }
+  // No years stated: the board's own label decides.
+  if (level === "senior") return { reject: "senior level" };
+  if (level === "mid") return isLevel2Experienced(roleKey, job.title) ? { track: "level2", why: "mid-level" } : { reject: "mid level" };
+  return { track: "level1", why: level ?? "level not stated" };
+}
+
+/**
+ * Minimum years of experience the post asks for: the experience line first, else the description —
+ * but there only next to the word "experience", so "15 years in business" doesn't count.
+ */
 export function experienceYears(job: { experience?: string | null; description?: string | null }): number | undefined {
-  return minYears(job.experience ?? undefined) ?? minYears(job.description ?? undefined);
+  const fromLine = minYears(job.experience ?? undefined);
+  if (fromLine !== undefined) return fromLine;
+  const d = (job.description ?? "").toLowerCase();
+  if (/fresh(er|ers| graduate)s?\b|no (prior )?experience (is )?(required|needed)/.test(d)) return 0;
+  const m =
+    d.match(/(\d+(?:\.\d+)?)\s*\+?\s*(?:-|to|–)?\s*(?:\d+\s*)?(?:years?|yrs?)(?:'|’)?\s*(?:of\s+)?(?:[a-z.#/+-]+\s+){0,4}(?:experience|exp\b)/) ??
+    d.match(/experience[^.\n]{0,40}?(\d+(?:\.\d+)?)\s*\+?\s*(?:-|to|–)?\s*(?:\d+\s*)?(?:years?|yrs?)/);
+  return m ? Number(m[1]) : undefined;
 }
 
 // QA roles must be about software: factory, lab and garment quality assurance is not.

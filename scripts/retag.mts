@@ -4,7 +4,7 @@
 //   npm run retag
 import { prisma } from "../src/lib/db";
 import { extractSalary } from "../src/lib/pipeline/salary";
-import { experienceYears, isLevel2Experienced, isSoftwareQA, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
+import { experienceVerdict, isLevel2Experienced, isSoftwareQA, matchRole, offStack, remoteArea } from "../src/lib/pipeline/rules";
 
 // Loaded in pages: one query for every job with its description times out on a slow link.
 const select = {
@@ -18,7 +18,6 @@ for (let cursor: string | undefined; ; ) {
   if (page.length < 300) break;
   cursor = page[page.length - 1].id;
 }
-const experienced = (level: string | null) => level === "mid" || level === "senior";
 const roleKey = (title: string, description: string) =>
   matchRole(title)?.key ??
   // Social posts: the title is just the first line, so look at the opening of the post too.
@@ -38,11 +37,15 @@ for (const j of jobs) {
   const set: Record<string, unknown> = {};
   const description = j.description ?? "";
   const key = roleKey(j.title, description);
-  // Fresher / junior / intern → Level 1 only; mid / senior, or 1+ years asked, on a Next Level
-  // engineering role → Level 2 only (same rule as the gate).
-  const years = experienceYears(j);
-  const toLevel2 = experienced(j.level) || (years !== undefined && years >= 1 && !!key && isLevel2Experienced(key, j.title));
-  const tracks = toLevel2 ? ["level2"] : ["level1"];
+  // Same rule as the gate: fresher / intern / unstated → Level 1; 1–2 years on a Next Level
+  // engineering role → Level 2; senior titles and 3+ years → removed.
+  const verdict = experienceVerdict(j, j.level, key ?? "");
+  if ("reject" in verdict) {
+    toDelete.push(j.id);
+    hidden.push(`${j.title} — ${verdict.reject}`);
+    continue;
+  }
+  const tracks = [verdict.track];
   if (tracks.join() !== (j.tracks ?? []).join()) set.tracks = tracks;
   // Salary from the post text when the board gave none.
   const salary = j.salary ? undefined : extractSalary(description);

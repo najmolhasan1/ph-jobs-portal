@@ -9,7 +9,7 @@ export const TRACK_META = {
   level2: {
     label: "Level 2",
     title: "Next Level Web Development",
-    blurb: "TypeScript, Next.js, Node & full-stack roles — fresher to experienced",
+    blurb: "TypeScript, Next.js, Node & full-stack roles asking 1–2 years",
     tag: "Full-stack & backend",
   },
   phitron: {
