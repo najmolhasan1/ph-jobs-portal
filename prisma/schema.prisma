@@ -124,3 +124,31 @@ model Lock {
   /// timestamptz: written by a raw query, so it must not depend on the server's time zone.
   heartbeatAt DateTime @db.Timestamptz(3)
 }
+
+/// Every job posted in Bangladesh (all fields, not just the portal's) — feeds Career Insights.
+model MarketJob {
+  id          String    @id @default(cuid())
+  source      String // bdjobs | teletalk
+  externalId  String
+  title       String
+  /// Cleaned title used to group the same job across companies ("Sales Executive").
+  normTitle   String
+  company     String?
+  location    String?
+  category    String
+  subcategory String
+  salaryMin   Int? // BDT a month
+  salaryMax   Int?
+  expMin      Int? // years asked; null = not stated
+  eduLevel    String? // ssc | hsc | diploma | bachelor | masters | mbbs | phd
+  vacancies   Int       @default(1)
+  /// BDJobs functional category id (kept so jobs can be re-sorted when the taxonomy changes).
+  bdCat       Int?
+  postedAt    DateTime
+  deadline    DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([source, externalId])
+  @@index([postedAt(sort: Desc)])
+  @@index([category, subcategory])
+}

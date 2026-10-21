@@ -9,7 +9,7 @@ const HEADERS = { "User-Agent": "Mozilla/5.0 (PH Jobs portal)", Origin: "https:/
 
 const RPP = 50;
 
-async function searchPage(params: Record<string, string>): Promise<{ items: RawItem[]; totalPages: number }> {
+export async function searchPage(params: Record<string, string>): Promise<{ items: RawItem[]; totalPages: number }> {
   const qs = new URLSearchParams({
     Icat: "", industry: "", category: "", org: "", jobNature: "", Fcat: "", location: "", Qot: "",
     jobType: "", jobLevel: "", postedWithin: "1", deadline: "", keyword: "", pg: "1", qAge: "",

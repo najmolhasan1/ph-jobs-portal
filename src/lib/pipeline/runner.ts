@@ -5,6 +5,7 @@ import { adapters } from "@/lib/sources";
 import { INGEST_DAYS, startOfDayDhaka } from "@/lib/time";
 import { cleanupRawItems, processItems, type ProcessStats } from "./process";
 import { dueSweeps, runSweep } from "./sweep";
+import { collectBdjobs, collectTeletalk } from "@/lib/market/collect";
 
 // Each platform is checked on its own interval by an always-on worker (scripts/worker.mts):
 //   check = ask the platform for posts since the last successful check → gate → dedup → store.
@@ -229,7 +230,35 @@ export async function runWorkers(signal?: AbortSignal): Promise<void> {
     }
   };
 
-  await Promise.all([...SOURCE_KEYS.map(loop), housekeeping(), sweeps()]);
+  // Career Insights: every Bangladesh job (all fields) from BDJobs and Teletalk govt circulars.
+  // New posts every 30 min; a full re-read of open listings every 6 h; Teletalk every 2 h.
+  const market = async () => {
+    let lastFull = 0;
+    let lastGovt = 0;
+    while (!signal?.aborted) {
+      const t0 = Date.now();
+      const full = t0 - lastFull > 6 * 3600_000;
+      try {
+        const added = await collectBdjobs(full ? "" : "1");
+        if (full) lastFull = t0;
+        log("market", `BDJobs ${full ? "all open jobs" : "today"}: ${added} new posts stored (${Math.round((Date.now() - t0) / 1000)}s)`);
+      } catch (e) {
+        log("market", `BDJobs failed: ${e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e}`);
+      }
+      if (Date.now() - lastGovt > 2 * 3600_000) {
+        try {
+          const added = await collectTeletalk();
+          lastGovt = Date.now();
+          log("market", `Teletalk govt jobs: ${added} new posts stored`);
+        } catch (e) {
+          log("market", `Teletalk failed: ${e instanceof Error ? e.message.split("\n").filter(Boolean).pop() : e}`);
+        }
+      }
+      await sleep(30 * 60_000);
+    }
+  };
+
+  await Promise.all([...SOURCE_KEYS.map(loop), housekeeping(), sweeps(), market()]);
 }
 
 /** Serverless fallback (e.g. Vercel Cron): run every platform that is due right now. */

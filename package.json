@@ -20,7 +20,8 @@
     "migrate:mongo": "tsx --env-file=.env.local scripts/migrate-from-mongo.mts",
     "postinstall": "prisma generate",
     "copy-db": "tsx --env-file=.env.local scripts/copy-db.mts",
-    "backfill": "tsx --env-file=.env.local scripts/backfill.mts"
+    "backfill": "tsx --env-file=.env.local scripts/backfill.mts",
+    "market": "tsx --env-file=.env.local scripts/market.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

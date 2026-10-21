@@ -31,7 +31,7 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
         active ? "bg-brand-soft text-brand-text" : "text-muted hover:bg-surface-2 hover:text-ink"
       }`}
     >
@@ -43,6 +43,7 @@ function NavLink({ href, active, children }: { href: string; active: boolean; ch
 export function SiteHeader() {
   const path = usePathname();
   const onJobs = path === "/" || path.startsWith("/jobs");
+  const onCareers = path.startsWith("/careers");
   const onAdmin = path.startsWith("/admin");
   // A floating bar that gains a shadow once the page scrolls under it.
   const [scrolled, setScrolled] = useState(false);
@@ -66,6 +67,7 @@ export function SiteHeader() {
           <Logo />
           <nav className="hidden items-center gap-1 sm:flex" aria-label="Main">
             <NavLink href="/" active={onJobs}>Find a job</NavLink>
+            <NavLink href="/careers" active={onCareers}>Career Insights</NavLink>
             <NavLink href="/admin" active={onAdmin}>
               Career team
               <svg viewBox="0 0 16 16" className="size-3" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -89,6 +91,9 @@ export function SiteHeader() {
           >
             <span className="sm:hidden">Jobs</span>
             <span className="hidden sm:inline">Browse jobs</span> <span aria-hidden>→</span>
+          </Link>
+          <Link href="/careers" className="text-xs font-semibold text-muted hover:text-ink sm:hidden">
+            Insights
           </Link>
           <Link href="/admin" className="text-xs font-semibold text-muted hover:text-ink sm:hidden" aria-label="Career team">
             Team
