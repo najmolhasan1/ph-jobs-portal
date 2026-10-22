@@ -169,6 +169,7 @@ model User {
   savedJobs    SavedJob[]
   viewedJobs   ViewedJob[]
   appliedJobs  AppliedJob[]
+  atlasCards   CareerAtlasCard[]
 }
 
 model Session {
@@ -217,5 +218,43 @@ model AppliedJob {
   @@unique([userId, jobId])
   @@index([userId, appliedAt(sort: Desc)])
 }
+
+model CareerAtlasCard {
+  id             String               @id @default(cuid())
+  opaqueId       String               @unique
+  userId         String?
+  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestTokenHash String?
+  storyType      String // journey | footprint | memory
+  profession     String
+  displayName    String
+  headline       String?
+  role           String?
+  avatarUrl      String?
+  publicPayload  Json
+  theme          String // midnight | paper | retro
+  aspectRatio    String // portrait | square | story
+  status         String               @default("active") // active | revoked | hidden
+  viewCount      Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  reports        CareerAtlasReport[]
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([userId])
+  @@index([guestTokenHash])
+}
+
+model CareerAtlasReport {
+  id          String          @id @default(cuid())
+  cardId      String
+  card        CareerAtlasCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  category    String
+  explanation String?
+  createdAt   DateTime        @default(now())
+
+  @@index([cardId])
+}
+
 
 

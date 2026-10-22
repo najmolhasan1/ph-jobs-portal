@@ -30,6 +30,7 @@ const LINKS = [
   { href: "/", label: "Home", match: (p: string) => p === "/" },
   { href: "/#jobs", label: "Find Job", match: (p: string) => p.startsWith("/jobs") },
   { href: "/careers", label: "Career Insights", match: (p: string) => p.startsWith("/careers") },
+  { href: "/career-atlas", label: "Career Atlas", match: (p: string) => p.startsWith("/career-atlas") },
 ];
 
 function NavLink({ href, active, children, onClick }: { href: string; active: boolean; children: React.ReactNode; onClick?: () => void }) {
