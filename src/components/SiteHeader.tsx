@@ -53,7 +53,40 @@ export function SiteHeader() {
   // Hidden while scrolling down (more room to read), back as soon as the visitor scrolls up.
   const [hidden, setHidden] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
   const lastY = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const fetchUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (active) {
+          setUser(data.user || null);
+        }
+      } catch {
+        if (active) setUser(null);
+      } finally {
+        if (active) setUserLoading(false);
+      }
+    };
+    fetchUser();
+    return () => {
+      active = false;
+    };
+  }, [path]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+      setUser(null);
+      window.location.href = "/";
+    } catch {
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     const onScroll = () => {
@@ -99,18 +132,42 @@ export function SiteHeader() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="hidden h-9 items-center rounded-xl px-3.5 text-sm font-bold text-ink transition hover:bg-surface-2 sm:inline-flex"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-9 items-center whitespace-nowrap rounded-xl bg-brand px-3.5 text-xs font-bold text-white shadow-[0_6px_18px_-6px_rgb(123_63_228/0.7)] transition hover:bg-brand-hover sm:text-sm"
-            >
-              Sign up
-            </Link>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-1.5 shadow-xs">
+                  <span className="grid size-6 place-items-center rounded-lg bg-brand text-[11px] font-bold text-white uppercase">
+                    {user.name.charAt(0)}
+                  </span>
+                  <span className="text-xs font-bold text-ink max-w-[110px] truncate sm:max-w-[150px]">
+                    {user.name}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex h-9 items-center rounded-xl px-2.5 sm:px-3 text-xs font-bold text-muted transition hover:bg-danger-soft hover:text-danger cursor-pointer"
+                >
+                  Log out
+                </button>
+              </div>
+            ) : userLoading ? (
+              <div className="h-9 w-20 animate-pulse rounded-xl bg-surface-2" />
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden h-9 items-center rounded-xl px-3.5 text-sm font-bold text-ink transition hover:bg-surface-2 sm:inline-flex"
+                >
+                  Log in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="inline-flex h-9 items-center whitespace-nowrap rounded-xl bg-brand px-3.5 text-xs font-bold text-white shadow-[0_6px_18px_-6px_rgb(123_63_228/0.7)] transition hover:bg-brand-hover sm:text-sm"
+                >
+                  Sign up
+                </Link>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setMenuOpen((o) => !o)}
@@ -133,9 +190,38 @@ export function SiteHeader() {
                 {l.label}
               </NavLink>
             ))}
-            <NavLink href="/login" active={path === "/login"} onClick={() => setMenuOpen(false)}>
-              Log in
-            </NavLink>
+            {user ? (
+              <div className="flex items-center justify-between border-t border-line pt-3 mt-1 px-1">
+                <div className="flex items-center gap-2">
+                  <span className="grid size-7 place-items-center rounded-lg bg-brand text-xs font-bold text-white uppercase">
+                    {user.name.charAt(0)}
+                  </span>
+                  <div className="leading-tight">
+                    <p className="text-xs font-bold text-ink">{user.name}</p>
+                    <p className="text-[10px] text-faint">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="rounded-lg px-2.5 py-1 text-xs font-bold text-danger hover:bg-danger-soft transition cursor-pointer"
+                >
+                  Log out
+                </button>
+              </div>
+            ) : (
+              <>
+                <NavLink href="/login" active={path === "/login"} onClick={() => setMenuOpen(false)}>
+                  Log in
+                </NavLink>
+                <NavLink href="/signup" active={path === "/signup"} onClick={() => setMenuOpen(false)}>
+                  Sign up
+                </NavLink>
+              </>
+            )}
           </nav>
         )}
       </div>
