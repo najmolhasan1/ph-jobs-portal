@@ -23,7 +23,7 @@ export function SharedCardView({ opaqueId, draft, isOwner, status }: SharedCardV
   const [isRevoking, setIsRevoking] = useState(false);
   const [revoked, setRevoked] = useState(status === "revoked");
 
-  const cardRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   if (revoked || status === "hidden") {
     return (
@@ -46,19 +46,31 @@ export function SharedCardView({ opaqueId, draft, isOwner, status }: SharedCardV
   }
 
   const handleDownload = async () => {
-    if (!cardRef.current) return;
+    if (!exportRef.current) return;
     setIsExporting(true);
     try {
-      await new Promise((r) => setTimeout(r, 100));
-      const dataUrl = await toPng(cardRef.current, {
+      await new Promise((r) => setTimeout(r, 150));
+
+      const width = 1080;
+      const height =
+        draft.design.aspectRatio === "portrait"
+          ? 1350
+          : draft.design.aspectRatio === "square"
+          ? 1080
+          : 1920;
+
+      const dataUrl = await toPng(exportRef.current, {
         cacheBust: true,
-        pixelRatio: 1,
-        quality: 0.95,
+        pixelRatio: 1, // Full 1:1 crisp 1080p resolution!
+        quality: 1,
+        width,
+        height,
       });
+
       const a = document.createElement("a");
       a.download = `career-atlas-${(draft.profile.displayName || "card")
         .toLowerCase()
-        .replace(/[^a-z0-9]/g, "-")}.png`;
+        .replace(/[^a-z0-9]/g, "-")}-${draft.design.aspectRatio}.png`;
       a.href = dataUrl;
       a.click();
     } catch {
@@ -202,11 +214,33 @@ export function SharedCardView({ opaqueId, draft, isOwner, status }: SharedCardV
           className="border border-line"
         >
           <AtlasCardRender
-            ref={cardRef}
             draft={draft}
             scale={540 / 1080}
           />
         </div>
+      </div>
+
+      {/* Hidden offscreen unscaled node for crisp 1080p PNG export (scale=1) */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "1080px",
+          height: `${
+            draft.design.aspectRatio === "portrait"
+              ? 1350
+              : draft.design.aspectRatio === "square"
+              ? 1080
+              : 1920
+          }px`,
+          overflow: "hidden",
+          pointerEvents: "none",
+          zIndex: -100,
+        }}
+      >
+        <AtlasCardRender ref={exportRef} draft={draft} scale={1} />
       </div>
 
       {/* Accessible Text Transcript Summary */}

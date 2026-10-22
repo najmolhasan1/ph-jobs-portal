@@ -22,7 +22,7 @@ export default function CareerAtlasBuilderPage() {
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const cardRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   // Load draft from localStorage on mount
   useEffect(() => {
@@ -57,18 +57,27 @@ export default function CareerAtlasBuilderPage() {
 
   // PNG Export Handler
   const handleDownloadPng = async () => {
-    if (!cardRef.current) return;
+    if (!exportRef.current) return;
     setIsExporting(true);
     setErrorMsg(null);
 
     try {
-      // Small pause to ensure layout has settled
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 150));
 
-      const dataUrl = await toPng(cardRef.current, {
+      const width = 1080;
+      const height =
+        draft.design.aspectRatio === "portrait"
+          ? 1350
+          : draft.design.aspectRatio === "square"
+          ? 1080
+          : 1920;
+
+      const dataUrl = await toPng(exportRef.current, {
         cacheBust: true,
-        pixelRatio: 1, // Render at exact 1080 width
-        quality: 0.95,
+        pixelRatio: 1, // Full 1:1 crisp 1080p resolution!
+        quality: 1,
+        width,
+        height,
       });
 
       const a = document.createElement("a");
@@ -77,9 +86,10 @@ export default function CareerAtlasBuilderPage() {
         .replace(/[^a-z0-9]/g, "-")}-${draft.design.aspectRatio}.png`;
       a.href = dataUrl;
       a.click();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Download PNG failed:", err);
-      setErrorMsg("Failed to generate image. Please try again or refresh.");
+      const message = err instanceof Error ? err.message : "Failed to generate image. Please try again.";
+      setErrorMsg(message);
     } finally {
       setIsExporting(false);
     }
@@ -1135,7 +1145,6 @@ Created with Career Atlas on Programming Hero Career Radar.
               }}
             >
               <AtlasCardRender
-                ref={cardRef}
                 draft={draft}
                 scale={400 / 1080}
               />
@@ -1276,6 +1285,28 @@ Created with Career Atlas on Programming Hero Career Radar.
           </div>
         </div>
       )}
+      {/* Hidden offscreen unscaled node for crisp 1080p PNG export (scale=1) */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "1080px",
+          height: `${
+            draft.design.aspectRatio === "portrait"
+              ? 1350
+              : draft.design.aspectRatio === "square"
+              ? 1080
+              : 1920
+          }px`,
+          overflow: "hidden",
+          pointerEvents: "none",
+          zIndex: -100,
+        }}
+      >
+        <AtlasCardRender ref={exportRef} draft={draft} scale={1} />
+      </div>
     </div>
   );
 }

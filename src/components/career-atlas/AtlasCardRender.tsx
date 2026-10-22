@@ -19,23 +19,24 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
 
     // Dimensions: 1080 standard width
     const width = 1080;
-    let height = 1350; // portrait
+    let height = 1350; // portrait 4:5
     if (aspectRatio === "square") {
-      height = 1080;
+      height = 1080; // 1:1
     } else if (aspectRatio === "story") {
-      height = 1920;
+      height = 1920; // 9:16
     }
 
     // Theme Styles
     const isMidnight = theme === "midnight";
     const isPaper = theme === "paper";
     const isRetro = theme === "retro";
+    const isSquare = aspectRatio === "square";
 
     const themeColors = {
       midnight: {
         bg: "bg-[#0c0915] text-[#f2effe]",
         border: "border-[#2b2247]",
-        cardBg: "bg-[#17122b]/90 border border-[#312652]",
+        cardBg: "bg-[#17122b]/95 border border-[#312652]",
         accent: "text-[#a77dfa]",
         accentBg: "bg-[#8b5cf6]/20 border border-[#8b5cf6]/40 text-[#c4b5fd]",
         softText: "text-[#9d97b5]",
@@ -46,7 +47,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
       paper: {
         bg: "bg-[#fbf9f4] text-[#191624]",
         border: "border-[#e3decb]",
-        cardBg: "bg-[#ffffff] border border-[#e5decb] shadow-[0_4px_24px_rgba(30,20,10,0.04)]",
+        cardBg: "bg-[#ffffff] border border-[#e5decb] shadow-[0_6px_24px_rgba(30,20,10,0.05)]",
         accent: "text-[#854d0e]",
         accentBg: "bg-[#fef9c3] border border-[#fde047] text-[#854d0e]",
         softText: "text-[#635d70]",
@@ -75,27 +76,35 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
       footprint.locations.filter((l) => l.districtId).map((l) => l.districtId)
     ).size;
 
+    const isSparse = milestones.length <= 3;
+
     return (
       <div
         ref={ref}
         style={{
           width: `${width}px`,
           height: `${height}px`,
-          transform: scale !== 1 ? `scale(${scale})` : undefined,
-          transformOrigin: "top left",
+          ...(scale !== 1
+            ? {
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+              }
+            : {}),
         }}
-        className={`relative flex flex-col justify-between overflow-hidden p-[64px] font-sans transition-all duration-300 ${themeColors.bg} ${className}`}
+        className={`relative flex flex-col justify-between overflow-hidden ${
+          isSquare ? "p-[48px]" : "p-[64px]"
+        } font-sans transition-all duration-300 ${themeColors.bg} ${className}`}
       >
         {/* Background decorative artwork */}
         <div className="pointer-events-none absolute inset-0 -z-0 opacity-40">
           {isMidnight && (
-            <div className="absolute top-[-20%] left-[-10%] h-[600px] w-[600px] rounded-full bg-linear-to-br from-[#8b5cf6]/25 to-[#ec4899]/15 blur-[120px]" />
+            <div className="absolute top-[-20%] left-[-10%] h-[700px] w-[700px] rounded-full bg-linear-to-br from-[#8b5cf6]/30 to-[#ec4899]/20 blur-[140px]" />
           )}
           {isRetro && (
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,229,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,229,255,0.04)_1px,transparent_1px),linear-gradient(90deg,rgba(0,229,255,0.04)_1px,transparent_1px)] bg-[size:40px_40px]" />
           )}
           {isPaper && (
-            <div className="absolute top-0 right-0 h-[400px] w-[400px] rounded-full bg-[#fef08a]/20 blur-[100px]" />
+            <div className="absolute top-0 right-0 h-[500px] w-[500px] rounded-full bg-[#fef08a]/30 blur-[120px]" />
           )}
         </div>
 
@@ -149,7 +158,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
           {/* Hometown & Work Base Tag */}
           <div className="text-right">
             {showHometown && (profile.hometownDistrict || profile.hometownCountry) && (
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface/50 px-4 py-2 backdrop-blur-xs">
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface/60 px-4 py-2 backdrop-blur-xs">
                 <span className="text-sm font-bold">
                   📍 {profile.hometownDistrict
                     ? BD_DISTRICTS.find((d) => d.id === profile.hometownDistrict)?.nameEn + ", BD"
@@ -158,7 +167,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
               </div>
             )}
             {profile.currentWorkBase && (
-              <p className={`mt-1 text-xs font-semibold ${themeColors.faintText}`}>
+              <p className={`mt-1.5 text-xs font-semibold ${themeColors.faintText}`}>
                 Base: {profile.currentWorkBase}
               </p>
             )}
@@ -166,26 +175,26 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
         </div>
 
         {/* MIDDLE: Dominant Story Content */}
-        <div className="relative z-10 my-6 flex-1 flex flex-col justify-center">
+        <div className={`relative z-10 ${isSquare ? "my-4" : "my-6"} flex-1 flex flex-col justify-center`}>
           {/* STORY 1: CAREER JOURNEY */}
           {storyType === "journey" && (
-            <div className="space-y-4">
+            <div className={isSparse ? "space-y-6" : "space-y-4"}>
               <div className="flex items-center justify-between border-b border-line pb-3">
                 <h2 className="text-xs font-extrabold uppercase tracking-[0.2em] text-faint">
                   Career Progression Timeline
                 </h2>
                 <span className={`text-xs font-bold ${themeColors.softText}`}>
-                  {milestones.length} Milestones
+                  {milestones.length} Milestones Recorded
                 </span>
               </div>
 
-              <div className="relative pl-6 space-y-4 border-l-2 border-dashed border-brand/40 my-2">
+              <div className={`relative pl-8 ${isSparse ? "space-y-6" : "space-y-3.5"} border-l-2 border-dashed border-brand/40 my-2`}>
                 {milestones.slice(0, 8).map((m, idx) => {
                   return (
                     <div key={m.id || idx} className="relative group">
                       {/* Node Bullet */}
                       <span
-                        className={`absolute -left-[31px] top-1.5 size-3.5 rounded-full ring-4 ${
+                        className={`absolute -left-[39px] ${isSparse ? "top-3" : "top-2"} size-4 rounded-full ring-4 ${
                           m.ongoing
                             ? "bg-ok ring-ok/30 animate-pulse"
                             : isMidnight
@@ -196,29 +205,31 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
                         }`}
                       />
 
-                      <div className={`rounded-2xl p-4 transition-all ${themeColors.cardBg}`}>
+                      <div className={`rounded-2xl ${isSparse ? "p-6" : isSquare ? "p-3.5" : "p-4"} transition-all ${themeColors.cardBg}`}>
                         <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <h3 className="text-xl font-extrabold text-ink">{m.title}</h3>
+                          <div className="flex items-center gap-3">
+                            <h3 className={`${isSparse ? "text-2xl" : "text-xl"} font-extrabold text-ink`}>
+                              {m.title}
+                            </h3>
                             {m.ongoing && (
-                              <span className="rounded-full bg-ok-soft px-2.5 py-0.5 text-xs font-bold text-ok">
+                              <span className="rounded-full bg-ok-soft px-3 py-0.5 text-xs font-bold text-ok">
                                 Current
                               </span>
                             )}
                           </div>
-                          <span className={`text-sm font-extrabold ${themeColors.accent}`}>
+                          <span className={`${isSparse ? "text-base" : "text-sm"} font-extrabold ${themeColors.accent}`}>
                             {m.startYear} {m.ongoing ? "– Present" : m.endYear && m.endYear !== m.startYear ? `– ${m.endYear}` : ""}
                           </span>
                         </div>
 
                         {m.organization && m.showOrg !== false && (
-                          <p className={`mt-0.5 text-xs font-bold uppercase tracking-wider ${themeColors.faintText}`}>
+                          <p className={`mt-1 text-xs font-bold uppercase tracking-wider ${themeColors.faintText}`}>
                             @ {m.organization}
                           </p>
                         )}
 
                         {m.note && (
-                          <p className={`mt-2 text-sm leading-relaxed ${themeColors.softText}`}>
+                          <p className={`mt-2 ${isSparse ? "text-base" : "text-sm"} leading-relaxed ${themeColors.softText}`}>
                             {m.note}
                           </p>
                         )}
@@ -250,7 +261,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
               </div>
 
               {/* Map Canvas Illustration */}
-              <div className={`my-4 relative h-[360px] w-full rounded-3xl overflow-hidden p-6 flex items-center justify-center ${themeColors.cardBg}`}>
+              <div className={`my-4 relative ${isSquare ? "h-[320px]" : "h-[400px]"} w-full rounded-3xl overflow-hidden p-6 flex items-center justify-center ${themeColors.cardBg}`}>
                 <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                   <defs>
                     <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
@@ -293,15 +304,15 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
                               strokeDasharray="2,2"
                               strokeOpacity="0.6"
                             />
-                            <circle cx={target.x} cy={target.y} r="2" fill={isRetro ? "#00e5ff" : "#d946ef"} />
-                            <circle cx={target.x} cy={target.y} r="4" fill="none" stroke="currentColor" strokeOpacity="0.4" />
+                            <circle cx={target.x} cy={target.y} r="2.5" fill={isRetro ? "#00e5ff" : "#d946ef"} />
+                            <circle cx={target.x} cy={target.y} r="5" fill="none" stroke="currentColor" strokeOpacity="0.4" />
                           </g>
                         );
                       })}
 
                       {/* Origin Hub Pin */}
-                      <circle cx="71" cy="50" r="3.5" fill="#10b981" />
-                      <circle cx="71" cy="50" r="7" fill="none" stroke="#10b981" strokeOpacity="0.5" />
+                      <circle cx="71" cy="50" r="4" fill="#10b981" />
+                      <circle cx="71" cy="50" r="8" fill="none" stroke="#10b981" strokeOpacity="0.5" />
                     </>
                   ) : (
                     <>
@@ -317,13 +328,13 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
                         const cy = district?.y || 50;
                         return (
                           <g key={loc.id || i}>
-                            <circle cx={cx} cy={cy} r="2.5" fill={isRetro ? "#00e5ff" : "#8b5cf6"} />
-                            <circle cx={cx} cy={cy} r="5" fill="none" stroke={isRetro ? "#00e5ff" : "#8b5cf6"} strokeOpacity="0.4" />
+                            <circle cx={cx} cy={cy} r="3" fill={isRetro ? "#00e5ff" : "#8b5cf6"} />
+                            <circle cx={cx} cy={cy} r="6" fill="none" stroke={isRetro ? "#00e5ff" : "#8b5cf6"} strokeOpacity="0.4" />
                           </g>
                         );
                       })}
                       {/* Dhaka origin */}
-                      <circle cx="50" cy="55" r="3" fill="#10b981" />
+                      <circle cx="50" cy="55" r="3.5" fill="#10b981" />
                     </>
                   )}
                 </svg>
@@ -351,7 +362,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
 
           {/* STORY 3: CAREER MEMORY */}
           {storyType === "memory" && (
-            <div className={`rounded-3xl p-8 transition-all ${themeColors.cardBg}`}>
+            <div className={`rounded-3xl ${isSquare ? "p-6" : "p-8"} transition-all ${themeColors.cardBg}`}>
               <div className="flex items-center justify-between border-b border-line pb-4">
                 <span className="text-xs font-black uppercase tracking-[0.2em] text-brand">
                   Unforgettable Milestone
@@ -366,10 +377,10 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
                   <img
                     src={memory.imageDataUrl}
                     alt={memory.title}
-                    className="size-48 rounded-2xl object-cover ring-2 ring-brand/30 shadow-lg"
+                    className="size-52 rounded-2xl object-cover ring-2 ring-brand/30 shadow-lg"
                   />
                 ) : (
-                  <div className="grid size-36 shrink-0 place-items-center rounded-2xl bg-brand-soft text-5xl">
+                  <div className="grid size-40 shrink-0 place-items-center rounded-2xl bg-brand-soft text-6xl">
                     🌟
                   </div>
                 )}
@@ -390,14 +401,14 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
         </div>
 
         {/* BOTTOM: Toolkit, Metrics & Footer */}
-        <div className="relative z-10 space-y-6">
+        <div className={`relative z-10 ${isSquare ? "space-y-4" : "space-y-6"}`}>
           {/* Metrics Counters */}
           {showMetrics && profile.metrics && profile.metrics.length > 0 && (
             <div className="grid grid-cols-3 gap-4">
               {profile.metrics.map((m, idx) => (
                 <div
                   key={idx}
-                  className={`rounded-2xl p-4 text-center transition-all ${themeColors.cardBg}`}
+                  className={`rounded-2xl ${isSquare ? "p-3" : "p-4"} text-center transition-all ${themeColors.cardBg}`}
                 >
                   <p className="text-3xl font-black text-ink">{m.value}</p>
                   <p className={`mt-1 text-xs font-bold uppercase tracking-wider ${themeColors.faintText}`}>
@@ -410,7 +421,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
 
           {/* Tools & Technologies */}
           {showTools && tools && tools.length > 0 && (
-            <div className="flex items-center justify-between gap-4 border-t border-line pt-4">
+            <div className="flex items-center justify-between gap-4 border-t border-line pt-3.5">
               <span className={`text-xs font-bold uppercase tracking-wider ${themeColors.faintText}`}>
                 Tech & Tools
               </span>
@@ -430,7 +441,7 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
           )}
 
           {/* Footer Branding Bar */}
-          <div className="flex items-center justify-between border-t border-line pt-4 text-xs font-semibold">
+          <div className="flex items-center justify-between border-t border-line pt-3 text-xs font-semibold">
             <div className="flex items-center gap-2">
               <span className="size-2 rounded-full bg-brand" />
               <span className="font-bold text-ink">Programming Hero · Career Radar</span>
