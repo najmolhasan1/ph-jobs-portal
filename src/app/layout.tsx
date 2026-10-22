@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import "./globals.css";
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <SiteHeader />
         <main className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6">{children}</main>
         <SiteFooter />
+        <Analytics />
       </body>
     </html>
   );
 }
+
