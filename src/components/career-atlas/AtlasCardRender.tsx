@@ -4,7 +4,8 @@
 import React from "react";
 import type { AtlasCardDraft } from "@/lib/career-atlas/types";
 import { ALL_BADGES } from "@/lib/career-atlas/badges";
-import { BD_DISTRICTS, WORLD_COUNTRIES } from "@/lib/career-atlas/geo-data";
+import { BD_DISTRICTS } from "@/lib/career-atlas/geo-data";
+import { AtlasFootprintMap } from "./AtlasFootprintMap";
 
 interface AtlasCardRenderProps {
   draft: AtlasCardDraft;
@@ -261,98 +262,28 @@ export const AtlasCardRender = React.forwardRef<HTMLDivElement, AtlasCardRenderP
               </div>
 
               {/* Map Canvas Illustration */}
-              <div className={`my-4 relative ${isSquare ? "h-[320px]" : "h-[400px]"} w-full rounded-3xl overflow-hidden p-6 flex items-center justify-center ${themeColors.cardBg}`}>
-                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <defs>
-                    <radialGradient id="mapGlow" cx="50%" cy="50%" r="50%">
-                      <stop offset="0%" stopColor={isRetro ? "#00e5ff" : "#8b5cf6"} stopOpacity="0.3" />
-                      <stop offset="100%" stopColor="transparent" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-
-                  {/* Grid lines */}
-                  <line x1="0" y1="25" x2="100" y2="25" stroke="currentColor" strokeOpacity="0.05" />
-                  <line x1="0" y1="50" x2="100" y2="50" stroke="currentColor" strokeOpacity="0.05" />
-                  <line x1="0" y1="75" x2="100" y2="75" stroke="currentColor" strokeOpacity="0.05" />
-                  <line x1="25" y1="0" x2="25" y2="100" stroke="currentColor" strokeOpacity="0.05" />
-                  <line x1="50" y1="0" x2="50" y2="100" stroke="currentColor" strokeOpacity="0.05" />
-                  <line x1="75" y1="0" x2="75" y2="100" stroke="currentColor" strokeOpacity="0.05" />
-
-                  {/* World or Bangladesh Outline / Pins */}
-                  {footprint.scope === "world" ? (
-                    <>
-                      {/* World Continents simplified shapes */}
-                      <path
-                        d="M15,25 Q30,15 40,25 Q35,45 20,40 Z M45,20 Q65,15 75,30 Q65,45 50,40 Z M65,45 Q85,40 90,60 Q75,70 65,55 Z M25,50 Q38,50 35,75 Q20,70 25,50 Z"
-                        fill="currentColor"
-                        fillOpacity={isMidnight ? 0.08 : 0.05}
-                      />
-
-                      {/* Routes from Base (e.g. Bangladesh x:71, y:50) */}
-                      {footprint.locations.map((loc, i) => {
-                        const target = WORLD_COUNTRIES.find((c) => c.code === loc.countryCode) || {
-                          x: 50 + ((i * 17) % 40) - 20,
-                          y: 40 + ((i * 13) % 40) - 20,
-                        };
-                        return (
-                          <g key={loc.id || i}>
-                            <path
-                              d={`M71,50 Q${(71 + target.x) / 2},${Math.min(50, target.y) - 15} ${target.x},${target.y}`}
-                              fill="none"
-                              stroke={isRetro ? "#00e5ff" : isPaper ? "#854d0e" : "#8b5cf6"}
-                              strokeWidth="0.8"
-                              strokeDasharray="2,2"
-                              strokeOpacity="0.6"
-                            />
-                            <circle cx={target.x} cy={target.y} r="2.5" fill={isRetro ? "#00e5ff" : "#d946ef"} />
-                            <circle cx={target.x} cy={target.y} r="5" fill="none" stroke="currentColor" strokeOpacity="0.4" />
-                          </g>
-                        );
-                      })}
-
-                      {/* Origin Hub Pin */}
-                      <circle cx="71" cy="50" r="4" fill="#10b981" />
-                      <circle cx="71" cy="50" r="8" fill="none" stroke="#10b981" strokeOpacity="0.5" />
-                    </>
-                  ) : (
-                    <>
-                      {/* Bangladesh Stylized Outline */}
-                      <polygon
-                        points="25,15 45,15 65,30 85,35 85,70 70,85 50,85 30,75 20,45"
-                        fill="currentColor"
-                        fillOpacity={isMidnight ? 0.08 : 0.05}
-                      />
-                      {footprint.locations.map((loc, i) => {
-                        const district = BD_DISTRICTS.find((d) => d.id === loc.districtId);
-                        const cx = district?.x || 50;
-                        const cy = district?.y || 50;
-                        return (
-                          <g key={loc.id || i}>
-                            <circle cx={cx} cy={cy} r="3" fill={isRetro ? "#00e5ff" : "#8b5cf6"} />
-                            <circle cx={cx} cy={cy} r="6" fill="none" stroke={isRetro ? "#00e5ff" : "#8b5cf6"} strokeOpacity="0.4" />
-                          </g>
-                        );
-                      })}
-                      {/* Dhaka origin */}
-                      <circle cx="50" cy="55" r="3.5" fill="#10b981" />
-                    </>
-                  )}
-                </svg>
+              <div className={`my-4 relative ${isSquare ? "h-[360px]" : "h-[440px]"} w-full rounded-3xl overflow-hidden p-4 sm:p-6 flex items-center justify-center ${themeColors.cardBg}`}>
+                <AtlasFootprintMap
+                  scope={footprint.scope}
+                  locations={footprint.locations}
+                  theme={theme}
+                  isSquare={isSquare}
+                />
 
                 {/* Overlaid Badges */}
-                <div className="absolute bottom-4 left-4 right-4 flex flex-wrap gap-2">
-                  {footprint.locations.slice(0, 10).map((loc) => (
+                <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-2 pointer-events-none">
+                  {footprint.locations.slice(0, 8).map((loc) => (
                     <span
                       key={loc.id}
-                      className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-bold ${themeColors.accentBg}`}
+                      className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-bold shadow-xs backdrop-blur-xs ${themeColors.accentBg}`}
                     >
                       <span>📍</span>
                       <span>{loc.displayLabel}</span>
                     </span>
                   ))}
-                  {footprint.locations.length > 10 && (
-                    <span className="rounded-xl border border-line bg-surface/80 px-2.5 py-1 text-xs font-bold text-muted">
-                      +{footprint.locations.length - 10} more
+                  {footprint.locations.length > 8 && (
+                    <span className="rounded-xl border border-line bg-surface/90 backdrop-blur-xs px-2.5 py-1 text-xs font-bold text-muted">
+                      +{footprint.locations.length - 8} more
                     </span>
                   )}
                 </div>
