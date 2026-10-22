@@ -134,14 +134,25 @@ export function SiteHeader() {
           <div className="flex items-center gap-2">
             {user ? (
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-1.5 shadow-xs">
+                <Link
+                  href="/profile"
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-1.5 shadow-xs transition ${
+                    path === "/profile"
+                      ? "border-brand bg-brand-soft text-brand-text"
+                      : "border-line bg-surface-2 text-ink hover:border-brand/40"
+                  }`}
+                  title="View your saved jobs & profile"
+                >
                   <span className="grid size-6 place-items-center rounded-lg bg-brand text-[11px] font-bold text-white uppercase">
                     {user.name.charAt(0)}
                   </span>
-                  <span className="text-xs font-bold text-ink max-w-[110px] truncate sm:max-w-[150px]">
+                  <span className="text-xs font-bold max-w-[100px] truncate sm:max-w-[140px]">
                     {user.name}
                   </span>
-                </div>
+                  <span className="hidden text-[10px] font-semibold text-muted sm:inline">
+                    · Profile
+                  </span>
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -191,23 +202,30 @@ export function SiteHeader() {
               </NavLink>
             ))}
             {user ? (
-              <div className="flex items-center justify-between border-t border-line pt-3 mt-1 px-1">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-7 place-items-center rounded-lg bg-brand text-xs font-bold text-white uppercase">
-                    {user.name.charAt(0)}
-                  </span>
-                  <div className="leading-tight">
-                    <p className="text-xs font-bold text-ink">{user.name}</p>
-                    <p className="text-[10px] text-faint">{user.email}</p>
+              <div className="flex flex-col gap-2 border-t border-line pt-3 mt-1 px-1">
+                <Link
+                  href="/profile"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center justify-between rounded-xl bg-surface-2 p-2 hover:bg-brand-soft/50 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-7 place-items-center rounded-lg bg-brand text-xs font-bold text-white uppercase">
+                      {user.name.charAt(0)}
+                    </span>
+                    <div className="leading-tight">
+                      <p className="text-xs font-bold text-ink">{user.name}</p>
+                      <p className="text-[10px] text-faint">{user.email}</p>
+                    </div>
                   </div>
-                </div>
+                  <span className="text-xs font-bold text-brand">Profile & Saved →</span>
+                </Link>
                 <button
                   type="button"
                   onClick={() => {
                     setMenuOpen(false);
                     handleLogout();
                   }}
-                  className="rounded-lg px-2.5 py-1 text-xs font-bold text-danger hover:bg-danger-soft transition cursor-pointer"
+                  className="self-end rounded-lg px-2.5 py-1 text-xs font-bold text-danger hover:bg-danger-soft transition cursor-pointer"
                 >
                   Log out
                 </button>

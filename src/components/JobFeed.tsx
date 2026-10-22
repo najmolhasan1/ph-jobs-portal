@@ -289,10 +289,30 @@ export function JobFeed({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [view, setView] = useState<"all" | "saved">("all");
   const [saved, setSaved] = useState<string[]>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const first = useRef(true);
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setSaved(readSaved()), []);
+  useEffect(() => {
+    fetch("/api/user/saved-jobs")
+      .then((res) => {
+        if (res.ok) return res.json();
+        return null;
+      })
+      .then((data) => {
+        if (data?.jobIds) {
+          setSaved(data.jobIds);
+          setIsLoggedIn(true);
+        } else {
+          setSaved(readSaved());
+          setIsLoggedIn(false);
+        }
+      })
+      .catch(() => {
+        setSaved(readSaved());
+        setIsLoggedIn(false);
+      });
+  }, []);
 
   // Any filter change starts again from page 1.
   const setFilters = useCallback((next: Filters | ((f: Filters) => Filters)) => {
@@ -414,6 +434,22 @@ export function JobFeed({
   }, []);
 
   const toggleSave = useCallback((id: string) => {
+    if (isLoggedIn === false) {
+      const currentUrl = typeof window !== "undefined" ? window.location.pathname + window.location.search : "/";
+      window.location.href = `/login?${new URLSearchParams({
+        redirect: currentUrl,
+        saveJob: id,
+      }).toString()}`;
+      return;
+    }
+
+    // Call API for authenticated users
+    fetch("/api/user/saved-jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: id, action: "toggle" }),
+    }).catch(() => {});
+
     setSaved((prev) => {
       const next = prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev];
       try {
@@ -421,7 +457,7 @@ export function JobFeed({
       } catch {}
       return next;
     });
-  }, []);
+  }, [isLoggedIn]);
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();

@@ -10,7 +10,7 @@ import {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { email, password } = body;
+    const { email, password, saveJob } = body;
 
     if (!email || typeof email !== "string" || !password || typeof password !== "string") {
       return NextResponse.json(
@@ -38,6 +38,14 @@ export async function POST(req: Request) {
         { error: "Invalid email or password." },
         { status: 401 }
       );
+    }
+
+    if (saveJob && typeof saveJob === "string") {
+      await prisma.savedJob.upsert({
+        where: { userId_jobId: { userId: user.id, jobId: saveJob } },
+        create: { userId: user.id, jobId: saveJob },
+        update: {},
+      }).catch(() => {});
     }
 
     const token = await createSession(user.id);

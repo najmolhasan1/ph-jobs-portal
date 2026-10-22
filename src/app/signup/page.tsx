@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useTransition } from "react";
 
 function SignupForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/";
+  const saveJob = searchParams.get("saveJob") || "";
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,7 +38,7 @@ function SignupForm() {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
+          body: JSON.stringify({ name, email, password, saveJob }),
         });
 
         const data = await res.json();
@@ -48,8 +48,7 @@ function SignupForm() {
           return;
         }
 
-        router.push(redirectUrl);
-        router.refresh();
+        window.location.href = redirectUrl;
       } catch {
         setError("Network error. Please check your connection and try again.");
       }
@@ -67,10 +66,12 @@ function SignupForm() {
             🚀
           </span>
           <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-ink">
-            Create your account
+            {saveJob ? "Sign up to save this job" : "Create your account"}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            Join Career Radar to discover tech opportunities and stay ahead in your career.
+            {saveJob
+              ? "Create an account to keep this job and track applications across devices."
+              : "Join Career Radar to discover tech opportunities and stay ahead in your career."}
           </p>
         </div>
 
@@ -197,7 +198,14 @@ function SignupForm() {
         <p className="mt-6 text-center text-xs text-faint">
           Already have an account?{" "}
           <Link
-            href={`/login${redirectUrl !== "/" ? `?redirect=${encodeURIComponent(redirectUrl)}` : ""}`}
+            href={`/login${
+              redirectUrl !== "/" || saveJob
+                ? `?${new URLSearchParams({
+                    ...(redirectUrl !== "/" ? { redirect: redirectUrl } : {}),
+                    ...(saveJob ? { saveJob } : {}),
+                  }).toString()}`
+                : ""
+            }`}
             className="font-semibold text-brand-text hover:underline"
           >
             Log in

@@ -29,6 +29,9 @@ model Job {
   skills       String[]    @default([])
   applyUrl     String?
   sources      JobSource[]
+  savedBy      SavedJob[]
+  viewedBy     ViewedJob[]
+  appliedBy    AppliedJob[]
   postedAt     DateTime    @default(now())
   deadline     DateTime?
   relevance    Float       @default(0)
@@ -154,15 +157,18 @@ model MarketJob {
 }
 
 model User {
-  id           String    @id @default(cuid())
+  id           String       @id @default(cuid())
   name         String
-  email        String    @unique
+  email        String       @unique
   passwordHash String
   avatarUrl    String?
-  role         String    @default("user") // user | admin
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  role         String       @default("user") // user | admin
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   sessions     Session[]
+  savedJobs    SavedJob[]
+  viewedJobs   ViewedJob[]
+  appliedJobs  AppliedJob[]
 }
 
 model Session {
@@ -175,4 +181,41 @@ model Session {
 
   @@index([userId])
 }
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+model ViewedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  viewedAt  DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId, viewedAt(sort: Desc)])
+}
+
+model AppliedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  appliedAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId, appliedAt(sort: Desc)])
+}
+
 

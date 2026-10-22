@@ -3,7 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, BriefcaseIcon, CalendarIcon, CashIcon, ClockIcon, GlobeIcon, PinIcon } from "@/components/icons";
 import { CompanyAvatar } from "@/components/JobCard";
+import { ApplyButton } from "@/components/ApplyButton";
+import { SaveJobButton } from "@/components/SaveJobButton";
 import { prisma } from "@/lib/db";
+import { getCurrentUser } from "@/lib/user-auth";
 import { experienceLabel, formatDate, jobTypeLabel, levelLabel, SOURCE_LABELS, timeAgo } from "@/lib/format";
 import { isJobId, serializeJob, type JobDTO } from "@/lib/jobs-query";
 import { TRACK_META, type TrackKey } from "@/lib/tracks";
@@ -71,6 +74,17 @@ function Description({ text }: { text: string }) {
 export default async function JobPage({ params }: Props) {
   const job = await getJob((await params).id);
   if (!job) notFound();
+
+  // Record user view history if user is logged in
+  const user = await getCurrentUser().catch(() => null);
+  if (user) {
+    await prisma.viewedJob.upsert({
+      where: { userId_jobId: { userId: user.id, jobId: job.id } },
+      create: { userId: user.id, jobId: job.id, viewedAt: new Date() },
+      update: { viewedAt: new Date() },
+    }).catch(() => {});
+  }
+
   const primary = job.sources[0];
   const tracks = (job.tracks ?? []) as TrackKey[];
   const desc = job.description && job.description.length > 6000 ? `${job.description.slice(0, 6000)}…` : job.description;
@@ -164,7 +178,10 @@ export default async function JobPage({ params }: Props) {
 
         {/* Side panel */}
         <aside className="rounded-2xl border border-line bg-surface p-6 shadow-card lg:sticky lg:top-24">
-          <h2 className="text-sm font-extrabold">A little more about the role</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-extrabold">A little more about the role</h2>
+            <SaveJobButton jobId={job.id} />
+          </div>
           <dl className="mt-5 space-y-4">
             <Fact icon={<BriefcaseIcon className="size-4" />} label="Experience" value={experienceLabel(job.experience, job.level) ?? levelLabel(job.level)} />
             <Fact icon={<CashIcon className="size-4" />} label="Salary" value={job.salary ?? "Not disclosed"} />
@@ -173,14 +190,7 @@ export default async function JobPage({ params }: Props) {
             <Fact icon={<CalendarIcon className="size-4" />} label="Listing expires" value={formatDate(job.deadline) || undefined} />
           </dl>
           {job.applyUrl && (
-            <a
-              href={job.applyUrl}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgb(123_63_228/0.3)] transition hover:bg-brand-hover"
-            >
-              Apply on {SOURCE_LABELS[primary?.source] ?? "original source"} <ArrowUpRight className="size-4" />
-            </a>
+            <ApplyButton jobId={job.id} applyUrl={job.applyUrl} sourceName={SOURCE_LABELS[primary?.source]} />
           )}
           <p className="mt-3 flex items-start gap-1.5 text-xs leading-relaxed text-faint">
             <ClockIcon className="mt-0.5 size-3.5 shrink-0" />

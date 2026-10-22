@@ -10,7 +10,7 @@ import {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const { name, email, password } = body;
+    const { name, email, password, saveJob } = body;
 
     if (!name || typeof name !== "string" || name.trim().length < 2) {
       return NextResponse.json(
@@ -63,6 +63,14 @@ export async function POST(req: Request) {
         role: true,
       },
     });
+
+    if (saveJob && typeof saveJob === "string") {
+      await prisma.savedJob.upsert({
+        where: { userId_jobId: { userId: user.id, jobId: saveJob } },
+        create: { userId: user.id, jobId: saveJob },
+        update: {},
+      }).catch(() => {});
+    }
 
     const token = await createSession(user.id);
 
