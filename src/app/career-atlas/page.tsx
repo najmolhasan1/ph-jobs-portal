@@ -71,10 +71,10 @@ export default function CareerAtlasLandingPage() {
 
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
-            href="/career-atlas/create"
+            href="#stories"
             className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-brand px-8 text-sm font-bold text-white shadow-lg shadow-brand/25 transition hover:bg-brand-hover sm:w-auto cursor-pointer"
           >
-            Create Your Career Map →
+            Choose Your Story Format ↓
           </Link>
 
           <p className="text-xs font-semibold text-faint">
@@ -84,7 +84,7 @@ export default function CareerAtlasLandingPage() {
       </div>
 
       {/* 3 Story Types Showcase Grid */}
-      <div className="mt-16 sm:mt-24">
+      <div id="stories" className="mt-16 sm:mt-24 scroll-mt-20">
         <div className="text-center mb-10">
           <h2 className="text-2xl font-black tracking-tight text-ink sm:text-3xl">
             Choose the story you want to show

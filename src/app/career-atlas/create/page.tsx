@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import { AtlasCardRender } from "@/components/career-atlas/AtlasCardRender";
 import { createInitialDraft } from "@/lib/career-atlas/defaults";
@@ -12,8 +13,19 @@ import type { AspectRatio, AtlasCardDraft, MilestoneKind, ProfessionType, StoryT
 const DRAFT_STORAGE_KEY = "ph-career-atlas-draft-v1";
 
 export default function CareerAtlasBuilderPage() {
+  return (
+    <Suspense fallback={<div className="py-16 text-center text-sm font-bold text-muted">Loading Career Atlas...</div>}>
+      <CareerAtlasBuilderContent />
+    </Suspense>
+  );
+}
+
+function CareerAtlasBuilderContent() {
+  const searchParams = useSearchParams();
+  const urlStory = searchParams.get("story");
+
   const [draft, setDraft] = useState<AtlasCardDraft>(createInitialDraft);
-  const [activeTab, setActiveTab] = useState<"story" | "details" | "identity" | "design">("story");
+  const [activeTab, setActiveTab] = useState<"details" | "identity" | "design">("details");
   const [isExporting, setIsExporting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -24,20 +36,35 @@ export default function CareerAtlasBuilderPage() {
 
   const exportRef = useRef<HTMLDivElement>(null);
 
-  // Load draft from localStorage on mount
+  // Load draft from localStorage on mount & sync with URL story query
   useEffect(() => {
+    let loaded: AtlasCardDraft | null = null;
     try {
       const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed?.schemaVersion === 1) {
-          setDraft(parsed);
+          loaded = parsed;
         }
       }
     } catch {
       // ignore
     }
-  }, []);
+
+    const validStory =
+      urlStory === "journey" || urlStory === "footprint" || urlStory === "memory"
+        ? (urlStory as StoryType)
+        : null;
+
+    if (validStory) {
+      setDraft((prev) => ({
+        ...(loaded || prev),
+        storyType: validStory,
+      }));
+    } else if (loaded) {
+      setDraft(loaded);
+    }
+  }, [urlStory]);
 
   // Auto-save draft
   useEffect(() => {
@@ -261,15 +288,103 @@ Created with Career Atlas on Programming Hero Career Radar.
       {/* Main Grid: Controls on Left, Preview on Right */}
       <div className="mt-6 grid items-start gap-8 lg:grid-cols-[1fr_480px] xl:grid-cols-[1fr_540px]">
         {/* LEFT COLUMN: Controls Form */}
-        <div className="space-y-6">
-          {/* Tab Navigation */}
+        <div className="space-y-5">
+          {/* Active Story & Profession Section */}
+          <div className="rounded-3xl border border-line bg-surface p-5 shadow-card space-y-4">
+            {/* Story Format Header with Quick Switch */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-line pb-3.5">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 place-items-center rounded-2xl bg-brand-soft text-xl">
+                  {draft.storyType === "footprint" ? "🗺️" : draft.storyType === "memory" ? "🌟" : "🧭"}
+                </span>
+                <div>
+                  <span className="block text-[10px] font-extrabold uppercase tracking-[0.2em] text-faint">
+                    Story Format
+                  </span>
+                  <span className="block text-base font-black text-ink">
+                    {draft.storyType === "footprint"
+                      ? "Work Footprint (Map)"
+                      : draft.storyType === "memory"
+                      ? "Career Memory (Milestone)"
+                      : "Career Journey (Timeline)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick switch format pills */}
+              <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-line self-start sm:self-auto">
+                {(
+                  [
+                    { id: "journey", label: "Journey", icon: "🧭" },
+                    { id: "footprint", label: "Footprint", icon: "🗺️" },
+                    { id: "memory", label: "Memory", icon: "🌟" },
+                  ] as const
+                ).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => updateDraft((d) => ({ ...d, storyType: s.id }))}
+                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer ${
+                      draft.storyType === s.id
+                        ? "bg-brand text-white shadow-xs"
+                        : "text-muted hover:text-ink hover:bg-surface"
+                    }`}
+                  >
+                    <span>{s.icon}</span>
+                    <span>{s.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Profession Selector */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="text-xs font-bold text-muted uppercase tracking-wider">
+                  Your Profession
+                </label>
+                <span className="text-[11px] font-semibold text-faint">Customizes suggested tools</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {(
+                  [
+                    { id: "programmer", label: "Programmer / Coder" },
+                    { id: "marketer", label: "Marketer / Growth" },
+                    { id: "freelancer", label: "Freelancer / Consultant" },
+                    { id: "hr", label: "HR / Corporate" },
+                    { id: "student", label: "Student / Beginner" },
+                    { id: "other", label: "Other Field" },
+                  ] as const
+                ).map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() =>
+                      updateDraft((d) => ({
+                        ...d,
+                        profile: { ...d.profile, profession: p.id as ProfessionType },
+                      }))
+                    }
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold text-left transition cursor-pointer ${
+                      draft.profile.profession === p.id
+                        ? "border-brand bg-brand-soft text-brand-text shadow-xs ring-1 ring-brand/30"
+                        : "border-line bg-surface-2 text-muted hover:text-ink hover:border-brand/40"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tab Navigation: 3 remaining tabs */}
           <div className="flex rounded-2xl border border-line bg-surface-2 p-1 text-xs font-bold">
             {(
               [
-                { id: "story", label: "1. Story Type" },
-                { id: "details", label: "2. Story Content" },
-                { id: "identity", label: "3. Identity & Tools" },
-                { id: "design", label: "4. Theme & Layout" },
+                { id: "details", label: "1. Story Content" },
+                { id: "identity", label: "2. Identity & Tools" },
+                { id: "design", label: "3. Theme & Layout" },
               ] as const
             ).map((t) => (
               <button
@@ -287,96 +402,7 @@ Created with Career Atlas on Programming Hero Career Radar.
             ))}
           </div>
 
-          {/* TAB 1: STORY TYPE & PROFESSION */}
-          {activeTab === "story" && (
-            <div className="rounded-3xl border border-line bg-surface p-6 shadow-card space-y-6">
-              <div>
-                <h2 className="text-base font-extrabold text-ink">Choose Your Dominant Story</h2>
-                <p className="mt-1 text-xs text-muted">
-                  Each Career Atlas focuses on one primary narrative that best captures your journey.
-                </p>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {[
-                    {
-                      id: "journey",
-                      title: "Career Journey",
-                      icon: "🧭",
-                      desc: "Timeline of milestone roles, switches and growth",
-                    },
-                    {
-                      id: "footprint",
-                      title: "Work Footprint",
-                      icon: "🗺️",
-                      desc: "Map of countries, districts, clients and reach",
-                    },
-                    {
-                      id: "memory",
-                      title: "Career Memory",
-                      icon: "🌟",
-                      desc: "One unforgettable project, photo or chapter",
-                    },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() =>
-                        updateDraft((d) => ({ ...d, storyType: s.id as StoryType }))
-                      }
-                      className={`flex flex-col items-start rounded-2xl border p-4 text-left transition cursor-pointer ${
-                        draft.storyType === s.id
-                          ? "border-brand bg-brand-soft ring-2 ring-brand/30"
-                          : "border-line bg-surface-2 hover:border-brand/40"
-                      }`}
-                    >
-                      <span className="text-2xl">{s.icon}</span>
-                      <span className="mt-2 text-sm font-bold text-ink">{s.title}</span>
-                      <span className="mt-1 text-xs text-muted">{s.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Profession Selector */}
-              <div className="border-t border-line pt-5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-muted mb-2">
-                  Your Profession
-                </label>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {(
-                    [
-                      { id: "programmer", label: "Programmer / Coder" },
-                      { id: "marketer", label: "Marketer / Growth" },
-                      { id: "freelancer", label: "Freelancer / Consultant" },
-                      { id: "hr", label: "HR / Corporate" },
-                      { id: "student", label: "Student / Beginner" },
-                      { id: "other", label: "Other Field" },
-                    ] as const
-                  ).map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() =>
-                        updateDraft((d) => ({
-                          ...d,
-                          profile: { ...d.profile, profession: p.id as ProfessionType },
-                        }))
-                      }
-                      className={`rounded-xl border px-3 py-2 text-xs font-bold text-left transition cursor-pointer ${
-                        draft.profile.profession === p.id
-                          ? "border-brand bg-brand-soft text-brand-text"
-                          : "border-line bg-surface-2 text-muted hover:text-ink"
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: STORY DETAILS (JOURNEY / FOOTPRINT / MEMORY) */}
+          {/* TAB 1: STORY DETAILS (JOURNEY / FOOTPRINT / MEMORY) */}
           {activeTab === "details" && (
             <div className="rounded-3xl border border-line bg-surface p-6 shadow-card space-y-6">
               {draft.storyType === "journey" && (
@@ -803,10 +829,22 @@ Created with Career Atlas on Programming Hero Career Radar.
                   </div>
                 </div>
               )}
+
+              {/* Step Navigation to Next */}
+              <div className="border-t border-line pt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("identity")}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-brand-hover transition cursor-pointer"
+                >
+                  <span>Continue to 2. Identity & Tools</span>
+                  <span>→</span>
+                </button>
+              </div>
             </div>
           )}
 
-          {/* TAB 3: IDENTITY & TOOLS */}
+          {/* TAB 2: IDENTITY & TOOLS */}
           {activeTab === "identity" && (
             <div className="rounded-3xl border border-line bg-surface p-6 shadow-card space-y-6">
               <div>
@@ -1008,10 +1046,29 @@ Created with Career Atlas on Programming Hero Career Radar.
                   })}
                 </div>
               </div>
+
+              {/* Step Navigation */}
+              <div className="border-t border-line pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("details")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-2 px-4 py-2 text-xs font-bold text-muted hover:text-ink transition cursor-pointer"
+                >
+                  <span>← Back to 1. Story Content</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("design")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-5 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-brand-hover transition cursor-pointer"
+                >
+                  <span>Continue to 3. Theme & Layout</span>
+                  <span>→</span>
+                </button>
+              </div>
             </div>
           )}
 
-          {/* TAB 4: THEME & LAYOUT */}
+          {/* TAB 3: THEME & LAYOUT */}
           {activeTab === "design" && (
             <div className="rounded-3xl border border-line bg-surface p-6 shadow-card space-y-6">
               <div>
@@ -1110,6 +1167,25 @@ Created with Career Atlas on Programming Hero Career Radar.
                     className="size-4 rounded text-brand"
                   />
                 </label>
+              </div>
+
+              {/* Step Navigation & Action */}
+              <div className="border-t border-line pt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("identity")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-2 px-4 py-2 text-xs font-bold text-muted hover:text-ink transition cursor-pointer"
+                >
+                  <span>← Back to 2. Identity & Tools</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPng}
+                  disabled={isExporting}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-brand-hover transition cursor-pointer disabled:opacity-50"
+                >
+                  <span>{isExporting ? "Generating..." : "Download High-Res PNG ↓"}</span>
+                </button>
               </div>
             </div>
           )}
