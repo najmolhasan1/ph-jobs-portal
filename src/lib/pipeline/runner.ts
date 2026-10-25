@@ -99,7 +99,7 @@ const LOCK_STALE_MS = 90_000;
  * The lock is a heartbeat document; a worker that dies stops refreshing it and the next one
  * can take over after ~90 s.
  */
-async function acquireWorkerLock(owner: string): Promise<boolean> {
+export async function acquireWorkerLock(owner: string): Promise<boolean> {
   const now = new Date();
   const data = { owner, pid: process.pid, heartbeatAt: now };
   // Take over the lock if it's ours or its holder stopped heartbeating…
@@ -118,7 +118,7 @@ async function acquireWorkerLock(owner: string): Promise<boolean> {
   }
 }
 
-async function releaseWorkerLock(owner: string) {
+export async function releaseWorkerLock(owner: string) {
   await prisma.lock.deleteMany({ where: { id: "worker", owner } }).catch(() => undefined);
 }
 

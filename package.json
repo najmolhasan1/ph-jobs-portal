@@ -10,18 +10,18 @@
     "db": "tsx scripts/dev-db.mts",
     "typecheck": "tsc --noEmit",
     "replay": "tsx --env-file=.env.local scripts/replay.mts",
-    "rescore": "tsx --env-file=.env.local scripts/rescore.mts",
-    "worker": "tsx --env-file=.env.local scripts/worker.mts",
+    "rescore": "tsx --env-file=.env.local --import ./scripts/db-route.mts scripts/rescore.mts",
+    "worker": "tsx --env-file=.env.local --import ./scripts/db-route.mts scripts/worker.mts",
     "check": "tsx --env-file=.env.local scripts/check.mts",
-    "retag": "tsx --env-file=.env.local scripts/retag.mts",
+    "retag": "tsx --env-file=.env.local --import ./scripts/db-route.mts scripts/retag.mts",
     "sync-config": "tsx --env-file=.env.local scripts/sync-config.mts",
     "db:mongo": "tsx scripts/mongo-db.mts",
     "db:push": "node --env-file=.env.local node_modules/prisma/build/index.js db push",
     "migrate:mongo": "tsx --env-file=.env.local scripts/migrate-from-mongo.mts",
     "postinstall": "prisma generate",
     "copy-db": "tsx --env-file=.env.local scripts/copy-db.mts",
-    "backfill": "tsx --env-file=.env.local scripts/backfill.mts",
-    "market": "tsx --env-file=.env.local scripts/market.mts"
+    "backfill": "tsx --env-file=.env.local --import ./scripts/db-route.mts scripts/backfill.mts",
+    "market": "tsx --env-file=.env.local --import ./scripts/db-route.mts scripts/market.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

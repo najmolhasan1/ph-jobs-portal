@@ -1,0 +1,53 @@
+# Cloud job collector: runs one collection round every 15 minutes, so the portal keeps getting
+# new jobs even when the PC worker is off (or its network can't reach the database).
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL, DIRECT_URL, APIFY_TOKENS (or APIFY_TOKEN), and optionally ANTHROPIC_API_KEY, CLAUDE_MODEL.
+# "Run workflow" by hand with backfill_days set re-collects that many days from every platform.
+name: Collect jobs
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      backfill_days:
+        description: "Re-collect the last N days from every platform (leave empty for a normal round)"
+        required: false
+        default: ""
+
+# Never two rounds at once.
+concurrency:
+  group: collect-jobs
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      APIFY_TOKEN: ${{ secrets.APIFY_TOKEN }}
+      APIFY_TOKENS: ${{ secrets.APIFY_TOKENS }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      CLAUDE_MODEL: ${{ secrets.CLAUDE_MODEL }}
+    steps:
+      - name: Secrets missing
+        if: env.DATABASE_URL == ''
+        run: echo "::notice::Add the DATABASE_URL secret (and the others listed at the top of this file) to start collecting."
+      - uses: actions/checkout@v4
+        if: env.DATABASE_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.DATABASE_URL != ''
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: env.DATABASE_URL != ''
+      - name: Collection round
+        if: ${{ env.DATABASE_URL != '' && !inputs.backfill_days }}
+        timeout-minutes: 14
+        run: npx tsx scripts/tick.mts
+      - name: Backfill
+        if: ${{ env.DATABASE_URL != '' && inputs.backfill_days }}
+        run: npx tsx scripts/backfill.mts "${{ inputs.backfill_days }}"
