@@ -86,6 +86,11 @@ function isCreditError(e: unknown): boolean {
   return (e as { statusCode?: number }).statusCode === 402 || CREDIT_ERROR.test(errorText(e));
 }
 
+/** A revoked or mistyped token ("User was not found or authentication token is not valid"). */
+function isAuthError(e: unknown): boolean {
+  return (e as { statusCode?: number }).statusCode === 401 || /authentication token is not valid|user was not found/i.test(errorText(e));
+}
+
 async function runWith(slot: Slot, actorId: string, input: Record<string, unknown>, timeoutSecs: number): Promise<RawItem[]> {
   // The account allows only a few runs at once; when several platforms are checked together, wait for a slot.
   for (let attempt = 1; ; attempt++) {
@@ -128,6 +133,14 @@ export async function runActor(actorId: string, input: Record<string, unknown>, 
       slot.lastError = undefined;
       return items;
     } catch (e) {
+      if (isAuthError(e)) {
+        // A dead token must not stop the platform — skip it for a day and try the next one.
+        slot.exhaustedUntil = Date.now() + 24 * 3600_000;
+        slot.lastError = "token not valid (revoked or deleted on Apify)";
+        lastCreditError = e;
+        console.warn(`[apify] token …${slot.token.slice(-4)} is not valid any more — switching to the next token`);
+        continue;
+      }
       if (!isCreditError(e)) throw e;
       slot.exhaustedUntil = Date.now() + PARK_MS;
       slot.lastError = e instanceof Error ? e.message : String(e);
@@ -136,5 +149,5 @@ export async function runActor(actorId: string, input: Record<string, unknown>, 
     }
   }
   const msg = lastCreditError instanceof Error ? lastCreditError.message : "";
-  throw new Error(`All ${all.length} Apify tokens are out of credit for this billing cycle. ${msg}`.trim());
+  throw new Error(`All ${all.length} Apify tokens are out of credit or no longer valid. ${msg}`.trim());
 }

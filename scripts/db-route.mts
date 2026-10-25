@@ -33,7 +33,10 @@ async function tryTwice(url: string | undefined) {
 
 const primary = process.env.DATABASE_URL;
 const direct = process.env.DIRECT_URL;
-if (primary && direct && primary !== direct && !(await tryTwice(primary)) && (await tryTwice(direct))) {
+// DB_ROUTE=direct forces the switch. Otherwise switch whenever the primary port is unreachable —
+// the direct port isn't pre-tested, since Prisma retries it itself with a longer timeout.
+const force = process.env.DB_ROUTE === "direct";
+if (primary && direct && primary !== direct && (force || !(await tryTwice(primary)))) {
   const u = new URL(direct);
   // Keep the app's schema and give the worker a few connections on the session pooler.
   const schema = new URL(primary).searchParams.get("schema");
@@ -43,5 +46,5 @@ if (primary && direct && primary !== direct && !(await tryTwice(primary)) && (aw
   if (!u.searchParams.has("connect_timeout")) u.searchParams.set("connect_timeout", "30");
   if (!u.searchParams.has("pool_timeout")) u.searchParams.set("pool_timeout", "30");
   process.env.DATABASE_URL = u.toString();
-  console.log(`Database: port ${new URL(primary).port} is blocked on this network — using the direct connection (port ${u.port || 5432}) instead.`);
+  console.log(`Database: port ${new URL(primary).port} is ${force ? "skipped (DB_ROUTE=direct)" : "blocked on this network"} — using the direct connection (port ${u.port || 5432}) instead.`);
 }
